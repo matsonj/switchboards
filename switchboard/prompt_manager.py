@@ -1,0 +1,187 @@
+"""Prompt management for loading and formatting Markdown templates."""
+
+import logging
+from pathlib import Path
+from typing import Any, Dict
+
+logger = logging.getLogger(__name__)
+
+
+class PromptManager:
+    """Manages loading and formatting of prompt templates from Markdown files."""
+
+    def __init__(self):
+        pass
+
+    def load_prompt(self, prompt_file: str, context: Dict[str, Any]) -> str:
+        """Load and format a prompt template with given context."""
+        try:
+            prompt_path = Path(prompt_file)
+
+            if not prompt_path.exists():
+                logger.warning(f"Prompt file not found: {prompt_file}, using default")
+                return self._get_default_prompt(context)
+
+            with open(prompt_path, "r", encoding="utf-8") as f:
+                template = f.read()
+
+            # Format template with context
+            formatted_prompt = self._format_template(template, context)
+
+            logger.debug(f"Loaded prompt from {prompt_file}")
+            return formatted_prompt
+
+        except Exception as e:
+            logger.error(f"Error loading prompt from {prompt_file}: {e}")
+            return self._get_default_prompt(context)
+
+    def _format_template(self, template: str, context: Dict[str, Any]) -> str:
+        """Format template string with context variables."""
+        try:
+            # Simple template variable replacement
+            formatted = template
+
+            for key, value in context.items():
+                placeholder = f"{{{{{key.upper()}}}}}"
+
+                if isinstance(value, list):
+                    # Format lists nicely
+                    if key == "board":
+                        # Format board as a grid
+                        board_str = self._format_board(value)
+                    else:
+                        board_str = ", ".join(str(item) for item in value)
+                    formatted = formatted.replace(placeholder, board_str)
+
+                elif isinstance(value, dict):
+                    # Format dictionaries
+                    if key == "identities":
+                        dict_str = self._format_identities(value)
+                    elif key == "revealed":
+                        dict_str = self._format_revealed(value)
+                    else:
+                        dict_str = str(value)
+                    formatted = formatted.replace(placeholder, dict_str)
+
+                else:
+                    formatted = formatted.replace(placeholder, str(value))
+
+            return formatted
+
+        except Exception as e:
+            logger.error(f"Error formatting template: {e}")
+            return template
+
+    def _format_board(self, board: list) -> str:
+        """Format board as a 5x5 grid."""
+        if len(board) != 25:
+            return ", ".join(board)
+
+        grid_lines = []
+        for row in range(5):
+            row_items = board[row * 5 : (row + 1) * 5]
+            grid_lines.append(" | ".join(f"{item:>12}" for item in row_items))
+
+        return "\n".join(grid_lines)
+
+    def _format_identities(self, identities: dict) -> str:
+        """Format identities dictionary."""
+        if not identities:
+            return "None revealed yet"
+
+        lines = []
+        for name, identity in identities.items():
+            lines.append(f"{name}: {identity}")
+
+        return "\n".join(lines)
+
+    def _format_revealed(self, revealed: dict) -> str:
+        """Format revealed status dictionary."""
+        revealed_names = [name for name, is_revealed in revealed.items() if is_revealed]
+        if not revealed_names:
+            return "None"
+        return ", ".join(revealed_names)
+
+    def _get_default_prompt(self, context: Dict[str, Any]) -> str:
+        """Generate a default prompt if template file is not available."""
+        role = self._infer_role(context)
+
+        if "operator" in role:
+            return self._get_default_operator_prompt(context)
+        else:
+            return self._get_default_lineman_prompt(context)
+
+    def _infer_role(self, context: Dict[str, Any]) -> str:
+        """Infer the role from context."""
+        if "identities" in context and context.get("identities"):
+            return "operator"
+        elif "clue" in context:
+            return "lineman"
+        else:
+            return "operator"  # Default
+
+    def _get_default_operator_prompt(self, context: Dict[str, Any]) -> str:
+        """Default operator prompt."""
+        team = context.get("team", "red")
+        board = context.get("board", [])
+        identities = context.get("identities", {})
+
+        prompt = f"""# The Switchboard - {team.title()} Team Operator
+
+You are the Operator for the {team.title()} team in The Switchboard, a game of clandestine communication.
+
+## Your Mission
+Guide your Linemen to identify all Allied Subscribers while avoiding:
+- Innocent Civilians (waste a guess)
+- Enemy Subscribers (help the other team)
+- The Mole (instant loss!)
+
+## Current Board
+{self._format_board(board)}
+
+## Secret Intelligence (Only you can see this!)
+{self._format_identities(identities)}
+
+## Your Task
+Provide a cryptic clue and number that will help your Linemen identify YOUR Allied Subscribers.
+
+Format your response as:
+CLUE: [your cryptic clue]
+NUMBER: [number of related subscribers]
+
+Be clever but not too obvious - the enemy might be listening!
+"""
+        return prompt
+
+    def _get_default_lineman_prompt(self, context: Dict[str, Any]) -> str:
+        """Default lineman prompt."""
+        team = context.get("team", "red")
+        board = context.get("board", [])
+        clue = context.get("clue", "")
+        number = context.get("number", 1)
+        revealed = context.get("revealed", {})
+
+        available_names = [name for name in board if not revealed.get(name, False)]
+
+        prompt = f"""# The Switchboard - {team.title()} Team Lineman
+
+You are a Lineman for the {team.title()} team in The Switchboard.
+
+## Your Mission
+Your Operator has given you a cryptic clue. Use it to identify Allied Subscribers.
+
+## Current Board (Available Names)
+{', '.join(available_names)}
+
+## Operator's Message
+Clue: "{clue}"
+Number: {number}
+
+## Rules
+- You can guess up to {number + 1} names (N+1 rule)
+- Stop immediately if you're unsure
+- Avoid The Mole at all costs!
+
+Respond with your guesses, one per line. You may guess fewer than the maximum allowed.
+"""
+        return prompt
