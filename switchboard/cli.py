@@ -18,6 +18,32 @@ app = typer.Typer(help="The Switchboard AI Game Simulator")
 console = Console()
 
 
+def _format_board_for_lineman_cli(board_state: dict) -> str:
+    """Format the board for lineman display with revealed status."""
+    board = board_state["board"]
+    revealed = board_state["revealed"]
+    
+    # Create a 5x5 grid display
+    lines = []
+    for row in range(5):
+        row_items = []
+        for col in range(5):
+            idx = row * 5 + col
+            name = board[idx]
+            
+            # Mark revealed names with brackets
+            if revealed.get(name, False):
+                display_name = f"[{name}]"
+            else:
+                display_name = name
+            
+            row_items.append(f"{display_name:>12}")
+        
+        lines.append(" |".join(row_items))
+    
+    return "\n".join(lines)
+
+
 @app.command()
 def run(
     red: Optional[str] = typer.Option(None, help="Model for Red Team"),
@@ -363,10 +389,14 @@ def prompt(
                 if not board_state["revealed"].get(name, False)
             ]
             
+            # Format available names as a simple list
+            available_names_formatted = ", ".join(available_names)
+            
             prompt = prompt_manager.load_prompt(
                 prompt_file,
                 {
-                    "board": available_names,
+                    "board": _format_board_for_lineman_cli(board_state),
+                    "available_names": available_names_formatted,
                     "clue_history": board_state.get("clue_history", "None (game just started)"),
                     "clue": clue,
                     "number": parsed_number,

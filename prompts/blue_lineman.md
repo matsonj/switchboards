@@ -41,6 +41,6 @@ Use your Operator's clue to identify **Blue Allied Subscribers** on the board. A
 List your guesses, **one name per line**. You may guess fewer than the maximum allowed if you're unsure. You must guess at least one word.
 
 **Available names to choose from**:
-{{BOARD}}
+{{AVAILABLE_NAMES}}
 
 Only choose names that are still available (not already revealed). Be strategic - every wrong guess could cost the mission!

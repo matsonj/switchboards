@@ -23,6 +23,9 @@ Teams alternate turns:
 - **Human vs AI**: Interactive mode for human players
 - **Flexible AI Configuration**: Separate model assignment per team
 - **External Prompt Templates**: Markdown files for easy prompt tuning
+- **Expert Clue Types**: Support for zero clues (0) and unlimited clues
+- **Umpire Validation**: AI-powered clue validation for fair play
+- **Prompt Testing**: Built-in tools to test and debug AI prompts
 - **Comprehensive Logging**: Detailed game logs and statistics
 - **OpenRouter Integration**: Access to 200+ AI models
 
@@ -58,6 +61,22 @@ uv run switchboard run --red gpt4 --interactive
 uv run switchboard run --red gpt4 --blue claude --num-puzzles 5
 ```
 
+### Test AI Prompts
+```bash
+# Test operator prompts
+uv run switchboard prompt operator --seed 42 --team red
+
+# Test lineman prompts with regular clues
+uv run switchboard prompt lineman --seed 42 --clue "TOOLS" --number 3
+
+# Test expert clue types
+uv run switchboard prompt lineman --clue "ANIMALS" --number 0
+uv run switchboard prompt lineman --clue "FRUITS" --number unlimited
+
+# Test umpire validation
+uv run switchboard prompt umpire --seed 42 --clue "MILITARY" --number 2
+```
+
 ## Command Line Options
 
 ```bash
@@ -76,8 +95,23 @@ uv run switchboard run [OPTIONS]
 | `--red-lineman-prompt PATH` | Red lineman prompt file |
 | `--blue-operator-prompt PATH` | Blue operator prompt file |
 | `--blue-lineman-prompt PATH` | Blue lineman prompt file |
+| `--umpire MODEL` | AI model for umpire validation |
+| `--no-umpire` | Disable umpire validation |
 | `--log-path PATH` | Directory for log files |
 | `--verbose` | Enable verbose logging |
+
+### Prompt Testing Commands
+
+```bash
+uv run switchboard prompt [operator|lineman|umpire] [OPTIONS]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--team red/blue` | Team color (red or blue) |
+| `--seed N` | Random seed for reproducible boards |
+| `--clue TEXT` | Sample clue for lineman/umpire testing |
+| `--number N` | Sample number (supports 0, unlimited, or integers) |
 
 ## Available Models
 
@@ -116,32 +150,71 @@ prompts/
 ├── red_operator.md     # Red team operator prompts
 ├── red_lineman.md      # Red team lineman prompts
 ├── blue_operator.md    # Blue team operator prompts
-└── blue_lineman.md     # Blue team lineman prompts
+├── blue_lineman.md     # Blue team lineman prompts
+├── umpire.md           # Umpire clue validation prompts
+└── shared/
+    └── game_rules.md   # Shared game rules for all prompts
 
 logs/                   # Game logs and statistics
+```
+
+## Advanced Game Features
+
+### Expert Clue Types
+
+The Switchboard supports advanced clue strategies:
+
+- **Zero Clues (0)**: "None of our words relate to this clue" - unlimited guesses, must guess at least one
+- **Unlimited Clues**: Multiple related words from previous rounds - unlimited guesses, no minimum
+
+```bash
+# Examples in interactive mode
+Red Operator: "ANIMALS" (0)    # Zero clue
+Blue Operator: "FRUITS" (unlimited)  # Unlimited clue
+```
+
+### Umpire Validation
+
+AI-powered clue validation ensures fair play by checking:
+- Single word requirement (with exceptions for compound words, proper names, abbreviations)
+- No direct board name matches
+- No variants of board words
+- No letter count references
+- No position references
+
+### Game History Tracking
+
+Linemen receive comprehensive game history showing all previous clues and outcomes:
+
+```
+Turn 1a: Red Clue: "FRUITS" (3)
+  → APPLE ✓, BANANA ✓, COCONUT ○ (civilian)
+
+Turn 1b: Blue Clue: "METALS" (2)
+  → IRON ✓, STEEL ✗ (enemy)
 ```
 
 ## Customization
 
 ### Prompt Templates
 
-Modify the Markdown files in `prompts/` to customize AI behavior:
+Modify the Markdown files in `prompts/` to customize AI behavior. Templates support variable substitution:
 
-```markdown
-# The Switchboard - Red Team Operator
+**Operator Prompts:**
+- `{{RED_SUBSCRIBERS}}` - Your allied subscribers
+- `{{BLUE_SUBSCRIBERS}}` - Enemy subscribers  
+- `{{CIVILIANS}}` - Innocent civilians
+- `{{MOLE}}` - The dangerous mole
 
-Your mission: Guide your Linemen to find {{TEAM}} Allied Subscribers.
+**Lineman Prompts:**
+- `{{BOARD}}` - Current 5x5 board grid
+- `{{AVAILABLE_NAMES}}` - Available names to guess
+- `{{CLUE_HISTORY}}` - Formatted game history
+- `{{CLUE}}` - Current clue
+- `{{NUMBER}}` - Current number (supports 0, unlimited)
 
-Current Board:
-{{BOARD}}
-
-Secret Intelligence:
-{{IDENTITIES}}
-
-Provide your clue:
-CLUE: [your clue]
-NUMBER: [count]
-```
+**Shared Rules:**
+Use `{{include:shared/game_rules.md}}` to include common game rules across prompts.
 
 ### Model Configuration
 
@@ -227,6 +300,25 @@ uv run isort .
 ### Type Checking
 ```bash
 uv run mypy switchboard/
+```
+
+### Debugging AI Prompts
+
+Use the built-in prompt testing tools to debug and optimize AI behavior:
+
+```bash
+# Test with different seeds to see various board configurations
+uv run switchboard prompt operator --seed 42
+uv run switchboard prompt operator --seed 100
+
+# Test different clue scenarios
+uv run switchboard prompt lineman --clue "WEAPONS" --number 2
+uv run switchboard prompt lineman --clue "NATURE" --number unlimited
+uv run switchboard prompt lineman --clue "FOOD" --number 0
+
+# Test umpire validation with edge cases
+uv run switchboard prompt umpire --clue "DELTA" --number 1  # Should be invalid (board name)
+uv run switchboard prompt umpire --clue "MILITARY" --number 3  # Should be valid
 ```
 
 ## Contributing
