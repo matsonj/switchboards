@@ -11,6 +11,7 @@ from rich.table import Table
 
 from switchboard.game import SwitchboardGame
 from switchboard.player import AIPlayer, HumanPlayer, Player
+from switchboard.prompt_manager import PromptManager
 from switchboard.utils.logging import setup_logging
 
 app = typer.Typer(help="The Switchboard AI Game Simulator")
@@ -21,6 +22,8 @@ console = Console()
 def run(
     red: Optional[str] = typer.Option(None, help="Model for Red Team"),
     blue: Optional[str] = typer.Option(None, help="Model for Blue Team"),
+    umpire: Optional[str] = typer.Option("gemini-flash", help="Model for Umpire (clue validation)"),
+    no_umpire: bool = typer.Option(False, help="Disable umpire validation"),
     interactive: bool = typer.Option(
         False, help="Enable interactive mode for human player"
     ),
@@ -38,6 +41,9 @@ def run(
     ),
     blue_lineman_prompt: str = typer.Option(
         "prompts/blue_lineman.md", help="Blue lineman prompt file"
+    ),
+    umpire_prompt: str = typer.Option(
+        "prompts/umpire.md", help="Umpire prompt file"
     ),
     log_path: str = typer.Option("logs", help="Directory for log files"),
     verbose: bool = typer.Option(False, help="Enable verbose logging"),
@@ -115,6 +121,17 @@ def run(
             red_player = AIPlayer(red)
             blue_player = AIPlayer(blue)
 
+        # Create umpire player if not disabled
+        umpire_player = None
+        if not no_umpire and umpire:
+            try:
+                umpire_player = AIPlayer(umpire)
+                console.print(f"[green]Umpire enabled: {umpire}[/green]")
+            except Exception as e:
+                console.print(f"[yellow]Warning: Could not create umpire player: {e}[/yellow]")
+        elif no_umpire:
+            console.print("[yellow]Umpire validation disabled[/yellow]")
+
     except Exception as e:
         console.print(f"[red]Error creating players: {e}[/red]")
         raise typer.Exit(1)
@@ -129,10 +146,12 @@ def run(
                 names_file=names_file,
                 red_player=red_player,
                 blue_player=blue_player,
+                umpire_player=umpire_player,
                 red_operator_prompt=red_operator_prompt,
                 red_lineman_prompt=red_lineman_prompt,
                 blue_operator_prompt=blue_operator_prompt,
                 blue_lineman_prompt=blue_lineman_prompt,
+                umpire_prompt=umpire_prompt,
             )
 
             result = game.play()
@@ -222,6 +241,184 @@ def list_models():
         console.print(
             "Make sure the model mappings file exists at inputs/model_mappings.yml"
         )
+
+
+@app.command()
+def prompt(
+    role: str = typer.Argument(..., help="Role to test: operator, lineman, or umpire"),
+    team: str = typer.Option("red", help="Team color: red or blue"),
+    seed: Optional[int] = typer.Option(None, help="Random seed for reproducible board generation"),
+    names_file: str = typer.Option("inputs/names.yaml", help="Path to names YAML file"),
+    clue: str = typer.Option("EXAMPLE", help="Sample clue for lineman/umpire prompts"),
+    number: str = typer.Option("2", help="Sample number for lineman/umpire prompts (can be 'unlimited' or '0')"),
+    red_operator_prompt: str = typer.Option("prompts/red_operator.md", help="Red operator prompt file"),
+    red_lineman_prompt: str = typer.Option("prompts/red_lineman.md", help="Red lineman prompt file"),
+    blue_operator_prompt: str = typer.Option("prompts/blue_operator.md", help="Blue operator prompt file"),
+    blue_lineman_prompt: str = typer.Option("prompts/blue_lineman.md", help="Blue lineman prompt file"),
+    umpire_prompt: str = typer.Option("prompts/umpire.md", help="Umpire prompt file"),
+):
+    """Test and display the exact prompt sent to AI agents."""
+    
+    # Validate role
+    valid_roles = ["operator", "lineman", "umpire"]
+    if role not in valid_roles:
+        console.print(f"[red]Error: Role must be one of: {', '.join(valid_roles)}[/red]")
+        raise typer.Exit(1)
+    
+    # Validate team
+    if team not in ["red", "blue"]:
+        console.print(f"[red]Error: Team must be 'red' or 'blue'[/red]")
+        raise typer.Exit(1)
+    
+    # Set random seed if provided
+    if seed is not None:
+        random.seed(seed)
+        console.print(f"[dim]Using seed: {seed}[/dim]")
+    
+    try:
+        # Create a game to generate realistic board state
+        red_player = HumanPlayer()  # Dummy players
+        blue_player = HumanPlayer()
+        
+        game = SwitchboardGame(
+            names_file=names_file,
+            red_player=red_player,
+            blue_player=blue_player,
+            red_operator_prompt=red_operator_prompt,
+            red_lineman_prompt=red_lineman_prompt,
+            blue_operator_prompt=blue_operator_prompt,
+            blue_lineman_prompt=blue_lineman_prompt,
+            umpire_prompt=umpire_prompt,
+        )
+        
+        # Setup the board
+        game.setup_board()
+        
+        # Get board state 
+        board_state = game.get_board_state(reveal_all=(role == "operator"))
+        
+        # Initialize prompt manager
+        prompt_manager = PromptManager()
+        
+        # Parse number parameter (handle unlimited and 0)
+        parsed_number: int|str
+        if number.lower() == "unlimited":
+            parsed_number = "unlimited"
+        elif number == "0":
+            parsed_number = 0
+        else:
+            try:
+                parsed_number = int(number)
+            except ValueError:
+                console.print(f"[red]Error: Number must be an integer, 'unlimited', or '0'[/red]")
+                raise typer.Exit(1)
+        
+        # Generate the appropriate prompt
+        if role == "operator":
+            prompt_file = red_operator_prompt if team == "red" else blue_operator_prompt
+            
+            # Calculate remaining subscribers for operator context
+            red_remaining = sum(
+                1 for name, identity in board_state["identities"].items()
+                if identity == "red_subscriber" and not board_state["revealed"].get(name, False)
+            )
+            blue_remaining = sum(
+                1 for name, identity in board_state["identities"].items()
+                if identity == "blue_subscriber" and not board_state["revealed"].get(name, False)
+            )
+            revealed_names = [name for name, revealed in board_state["revealed"].items() if revealed]
+            
+            # Categorize identities for cleaner prompt formatting
+            red_subscribers = [name for name, identity in board_state["identities"].items() 
+                             if identity == "red_subscriber"]
+            blue_subscribers = [name for name, identity in board_state["identities"].items() 
+                              if identity == "blue_subscriber"]
+            civilians = [name for name, identity in board_state["identities"].items() 
+                        if identity == "civilian"]
+            mole = [name for name, identity in board_state["identities"].items() 
+                   if identity == "mole"]
+            
+            prompt = prompt_manager.load_prompt(
+                prompt_file,
+                {
+                    "board": board_state["board"],
+                    "revealed": board_state["revealed"],
+                    "team": team,
+                    "red_remaining": red_remaining,
+                    "blue_remaining": blue_remaining,
+                    "revealed_names": ", ".join(revealed_names) if revealed_names else "None",
+                    "red_subscribers": ", ".join(red_subscribers),
+                    "blue_subscribers": ", ".join(blue_subscribers),
+                    "civilians": ", ".join(civilians),
+                    "mole": ", ".join(mole),
+                },
+            )
+            
+        elif role == "lineman":
+            prompt_file = red_lineman_prompt if team == "red" else blue_lineman_prompt
+            
+            # Filter board to only show available (unrevealed) names for lineman
+            available_names = [
+                name for name in board_state["board"] 
+                if not board_state["revealed"].get(name, False)
+            ]
+            
+            prompt = prompt_manager.load_prompt(
+                prompt_file,
+                {
+                    "board": available_names,
+                    "clue_history": board_state.get("clue_history", "None (game just started)"),
+                    "clue": clue,
+                    "number": parsed_number,
+                    "team": team,
+                },
+            )
+            
+        elif role == "umpire":
+            # Get team's allied subscribers for umpire context
+            allied_subscribers = [
+                name for name, identity in board_state["identities"].items()
+                if identity == f"{team}_subscriber"
+            ]
+            
+            prompt = prompt_manager.load_prompt(
+                umpire_prompt,
+                {
+                    "clue": clue,
+                    "number": parsed_number,
+                    "team": team,
+                    "board": board_state["board"],
+                    "allied_subscribers": ", ".join(allied_subscribers),
+                },
+            )
+        
+        # Display the results
+        console.print(f"\n[bold]🎯 {role.title()} Prompt for {team.title()} Team[/bold]")
+        console.print(f"[dim]Seed: {seed}, Board: {len(board_state['board'])} names[/dim]")
+        
+        if role in ["lineman", "umpire"]:
+            console.print(f"[dim]Sample clue: '{clue}' ({parsed_number})[/dim]")
+        
+        console.print(f"\n[yellow]{'='*80}[/yellow]")
+        console.print("[yellow]PROMPT CONTENT:[/yellow]")
+        console.print(f"[yellow]{'='*80}[/yellow]\n")
+        
+        console.print(prompt)
+        
+        console.print(f"\n[yellow]{'='*80}[/yellow]")
+        console.print(f"[green]✅ Prompt generated successfully ({len(prompt)} characters)[/green]")
+        
+        # Show board state for context
+        if role == "operator":
+            console.print(f"\n[bold]📋 Board State (Operator View - All Identities Revealed):[/bold]")
+            game.display_board(reveal_all=True)
+        else:
+            console.print(f"\n[bold]📋 Board State (Public View):[/bold]")
+            game.display_board(reveal_all=False)
+        
+    except Exception as e:
+        console.print(f"[red]Error generating prompt: {e}[/red]")
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":

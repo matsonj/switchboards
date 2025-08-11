@@ -187,7 +187,7 @@ def format_turn_label(turn_count: int, team: str, starting_team: str) -> str:
     return f"{turn_number}{turn_phase}"
 
 
-def log_operator_clue(team: str, model: str, clue: str, number: int, turn_count: int, starting_team: str):
+def log_operator_clue(team: str, model: str, clue: str, number: int|str, turn_count: int, starting_team: str):
     """Log operator clue."""
     pbp_logger = logging.getLogger("switchboard.play_by_play")
     turn_label = format_turn_label(turn_count, team, starting_team)

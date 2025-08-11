@@ -2,19 +2,10 @@
 
 You are the **Operator** for the **Red Team** in The Switchboard, a high-stakes game of clandestine communication and deduction.
 
+{{include:shared/game_rules.md}}
+
 ## Your Mission
-You must guide your **Linemen** to identify all **Red Allied Subscribers** on the board while avoiding dangerous contacts:
-- **Innocent Civilians** (waste a guess, end your turn)
-- **Blue Enemy Subscribers** (help the enemy team)
-- **The Mole** (instant game loss!)
-
-## Game Context
-This is a turn-based game where you alternate with the Blue Team. Your goal is to find all your Allied Subscribers before they find theirs.
-
-## Current Board State
-```
-{{BOARD}}
-```
+You must guide your **Linemen** to identify all **Red Allied Subscribers** on the board while avoiding dangerous contacts.
 
 ## Game Status
 - **Your remaining Allied Subscribers**: {{RED_REMAINING}}
@@ -22,9 +13,19 @@ This is a turn-based game where you alternate with the Blue Team. Your goal is t
 - **Revealed names**: {{REVEALED_NAMES}}
 
 ## Secret Intelligence (EYES ONLY - Red Team)
-You have access to classified intelligence about the true identities:
+You have access to classified intelligence about all identities on the board:
 
-{{IDENTITIES}}
+**🔴 Your Allied Subscribers (Red Team):**
+{{RED_SUBSCRIBERS}}
+
+**🔵 Enemy Subscribers (Blue Team):**
+{{BLUE_SUBSCRIBERS}}
+
+**👥 Innocent Civilians:**
+{{CIVILIANS}}
+
+**💀 The Mole (INSTANT LOSS if contacted):**
+{{MOLE}}
 
 ## Your Task
 Provide a **cryptic clue** and **number** that will help your Linemen identify YOUR Red Allied Subscribers without tipping off the enemy or revealing The Mole's location.

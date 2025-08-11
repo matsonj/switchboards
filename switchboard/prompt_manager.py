@@ -1,6 +1,7 @@
 """Prompt management for loading and formatting Markdown templates."""
 
 import logging
+import re
 from pathlib import Path
 from typing import Any, Dict
 
@@ -22,8 +23,7 @@ class PromptManager:
                 logger.warning(f"Prompt file not found: {prompt_file}, using default")
                 return self._get_default_prompt(context)
 
-            with open(prompt_path, "r", encoding="utf-8") as f:
-                template = f.read()
+            template = self._load_with_includes(prompt_path)
 
             # Format template with context
             formatted_prompt = self._format_template(template, context)
@@ -34,6 +34,36 @@ class PromptManager:
         except Exception as e:
             logger.error(f"Error loading prompt from {prompt_file}: {e}")
             return self._get_default_prompt(context)
+
+    def _load_with_includes(self, prompt_path: Path) -> str:
+        """Load a prompt file and process any {{include}} directives."""
+        with open(prompt_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Process include directives: {{include:path/to/file.md}}
+        include_pattern = r'\{\{include:([^}]+)\}\}'
+        
+        def replace_include(match):
+            include_path = match.group(1).strip()
+            # Include paths are relative to prompts directory
+            full_include_path = prompt_path.parent / include_path
+            
+            if not full_include_path.exists():
+                logger.warning(f"Include file not found: {full_include_path}")
+                return f"<!-- Include not found: {include_path} -->"
+            
+            try:
+                with open(full_include_path, "r", encoding="utf-8") as f:
+                    include_content = f.read()
+                logger.debug(f"Included content from {full_include_path}")
+                return include_content
+            except Exception as e:
+                logger.error(f"Error loading include {full_include_path}: {e}")
+                return f"<!-- Error loading include: {include_path} -->"
+
+        # Replace all include directives
+        processed_content = re.sub(include_pattern, replace_include, content)
+        return processed_content
 
     def _format_template(self, template: str, context: Dict[str, Any]) -> str:
         """Format template string with context variables."""

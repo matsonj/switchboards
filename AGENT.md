@@ -9,6 +9,7 @@ This is a Python implementation of "The Switchboard" game - a strategic deductio
 - **Install dependencies**: `uv sync`
 - **Run game**: `uv run switchboard run --red gpt4 --blue claude`
 - **Interactive mode**: `uv run switchboard run --red gpt4 --interactive`
+- **Test prompts**: `uv run switchboard prompt operator --seed 42`
 - **Run tests**: `uv run pytest`
 - **Format code**: `uv run black . && uv run isort .`
 - **Type check**: `uv run mypy switchboard/`
@@ -75,6 +76,12 @@ logs/                       # Game logs and JSONL data
 
 ## Common Development Tasks
 
+### Testing AI Prompts
+- **Test operator prompts**: `uv run switchboard prompt operator --seed 42 --team red`
+- **Test lineman prompts**: `uv run switchboard prompt lineman --seed 42 --clue "TOOLS" --number 3`
+- **Test umpire prompts**: `uv run switchboard prompt umpire --seed 42 --clue "WEAPONS" --number 2`
+- **Test expert clues**: `uv run switchboard prompt lineman --clue "ANIMALS" --number 0` or `--number unlimited`
+
 ### Adding New AI Models
 1. Update `model_mappings` in `openrouter_adapter.py`
 2. Test with `uv run switchboard run --red NEW_MODEL --blue claude`
@@ -116,6 +123,7 @@ The simulator produces multiple log formats for different analysis needs:
 ## Known Issues & TODOs
 - [x] Implement model listing command (`list-models`) ✅
 - [x] Add configuration file support for model mappings ✅
+- [x] Implement expert clue types (0 and unlimited) ✅
 - [ ] Improve AI response parsing robustness
 - [ ] Add game replay functionality from JSONL logs
 - [ ] Implement tournament mode for model evaluation

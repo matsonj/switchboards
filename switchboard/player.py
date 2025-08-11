@@ -14,13 +14,13 @@ class Player(ABC):
     """Abstract base class for all players."""
 
     @abstractmethod
-    def get_operator_move(self, board_state: Dict, prompt_file: str) -> Tuple[str, int]:
+    def get_operator_move(self, board_state: Dict, prompt_file: str) -> Tuple[str, int|str]:
         """Get clue and number from operator."""
         pass
 
     @abstractmethod
     def get_lineman_moves(
-        self, board_state: Dict, clue: str, number: int, prompt_file: str
+        self, board_state: Dict, clue: str, number: int|str, prompt_file: str
     ) -> List[str]:
         """Get guesses from lineman."""
         pass
@@ -29,12 +29,12 @@ class Player(ABC):
 class HumanPlayer(Player):
     """Human player implementation."""
 
-    def get_operator_move(self, board_state: Dict, prompt_file: str) -> Tuple[str, int]:
+    def get_operator_move(self, board_state: Dict, prompt_file: str) -> Tuple[str, int|str]:
         """Human operator input is handled in the game loop."""
         raise NotImplementedError("Human operator input handled in game loop")
 
     def get_lineman_moves(
-        self, board_state: Dict, clue: str, number: int, prompt_file: str
+        self, board_state: Dict, clue: str, number: int|str, prompt_file: str
     ) -> List[str]:
         """Human lineman input is handled in the game loop."""
         raise NotImplementedError("Human lineman input handled in game loop")
@@ -57,7 +57,7 @@ class AIPlayer(Player):
             self._adapter = OpenRouterAdapter()
         return self._adapter
 
-    def get_operator_move(self, board_state: Dict, prompt_file: str) -> Tuple[str, int]:
+    def get_operator_move(self, board_state: Dict, prompt_file: str) -> Tuple[str, int|str]:
         """Get clue and number from AI operator."""
         try:
             # Calculate remaining subscribers
@@ -71,17 +71,30 @@ class AIPlayer(Player):
             )
             revealed_names = [name for name, revealed in board_state["revealed"].items() if revealed]
             
+            # Categorize identities for cleaner prompt formatting
+            red_subscribers = [name for name, identity in board_state["identities"].items() 
+                             if identity == "red_subscriber"]
+            blue_subscribers = [name for name, identity in board_state["identities"].items() 
+                              if identity == "blue_subscriber"]
+            civilians = [name for name, identity in board_state["identities"].items() 
+                        if identity == "civilian"]
+            mole = [name for name, identity in board_state["identities"].items() 
+                   if identity == "mole"]
+            
             # Load and format prompt
             prompt = self.prompt_manager.load_prompt(
                 prompt_file,
                 {
                     "board": board_state["board"],
-                    "identities": board_state["identities"],
                     "revealed": board_state["revealed"],
                     "team": board_state["current_team"],
                     "red_remaining": red_remaining,
                     "blue_remaining": blue_remaining,
                     "revealed_names": ", ".join(revealed_names) if revealed_names else "None",
+                    "red_subscribers": ", ".join(red_subscribers),
+                    "blue_subscribers": ", ".join(blue_subscribers),
+                    "civilians": ", ".join(civilians),
+                    "mole": ", ".join(mole),
                 },
             )
 
@@ -102,8 +115,47 @@ class AIPlayer(Player):
             # Fallback
             return "ERROR", 1
 
+    def get_umpire_validation(
+        self, clue: str, number: int|str, team: str, board_state: Dict, prompt_file: str
+    ) -> Tuple[bool, str]:
+        """Get umpire validation of a clue. Returns (is_valid, reasoning)."""
+        try:
+            # Get team's allied subscribers
+            allied_subscribers = [
+                name for name, identity in board_state["identities"].items()
+                if identity == f"{team}_subscriber"
+            ]
+            
+            # Load and format prompt
+            prompt = self.prompt_manager.load_prompt(
+                prompt_file,
+                {
+                    "clue": clue,
+                    "number": number,
+                    "team": team,
+                    "board": board_state["board"],
+                    "allied_subscribers": ", ".join(allied_subscribers),
+                },
+            )
+
+            # Call AI model
+            response = self.adapter.call_model(self.model_name, prompt)
+
+            # Parse response for validation
+            is_valid, reasoning = self._parse_umpire_response(response)
+
+            logger.info(
+                f"AI Umpire ({self.model_name}) validation: {'VALID' if is_valid else 'INVALID'} - {reasoning}"
+            )
+            return is_valid, reasoning
+
+        except Exception as e:
+            logger.error(f"Error in AI umpire validation: {e}")
+            # Fallback: allow clue but log the error
+            return True, f"Umpire error - allowing clue: {e}"
+
     def get_lineman_moves(
-        self, board_state: Dict, clue: str, number: int, prompt_file: str
+        self, board_state: Dict, clue: str, number: int|str, prompt_file: str
     ) -> List[str]:
         """Get guesses from AI lineman."""
         try:
@@ -118,7 +170,7 @@ class AIPlayer(Player):
                 prompt_file,
                 {
                     "board": available_names,
-                    "revealed": board_state["revealed"],
+                    "clue_history": board_state.get("clue_history", "None (game just started)"),
                     "clue": clue,
                     "number": number,
                     "team": board_state["current_team"],
@@ -144,38 +196,81 @@ class AIPlayer(Player):
             ]
             return available[:1] if available else []
 
-    def _parse_operator_response(self, response: str) -> Tuple[str, int]:
+    def _parse_operator_response(self, response: str) -> Tuple[str, int|str]:
         """Parse AI response for operator clue and number."""
         lines = response.strip().split("\n")
 
         # Look for clue and number patterns
         clue = "UNKNOWN"
-        number = 1
+        number: int|str = 1
 
         for line in lines:
             line = line.strip()
             if line.startswith("CLUE:"):
                 clue = line.replace("CLUE:", "").strip().strip("\"'")
             elif line.startswith("NUMBER:"):
-                try:
-                    number = int(line.replace("NUMBER:", "").strip())
-                except ValueError:
-                    number = 1
+                number_str = line.replace("NUMBER:", "").strip().lower()
+                if number_str == "unlimited":
+                    number = "unlimited"
+                else:
+                    try:
+                        number = int(number_str)
+                    except ValueError:
+                        number = 1
             elif ":" in line and len(line.split(":")) == 2:
                 # Try to parse "clue: number" format
                 parts = line.split(":")
-                if parts[1].strip().isdigit():
+                number_str = parts[1].strip().lower()
+                if number_str == "unlimited":
                     clue = parts[0].strip().strip("\"'")
-                    number = int(parts[1].strip())
+                    number = "unlimited"
+                elif number_str.isdigit():
+                    clue = parts[0].strip().strip("\"'")
+                    number = int(number_str)
 
-        # Ensure valid number
-        if number < 1:
+        # Ensure valid number (allow 0 and unlimited)
+        if isinstance(number, int) and number < 0:
             number = 1
 
         return clue, number
 
+    def _parse_umpire_response(self, response: str) -> Tuple[bool, str]:
+        """Parse AI response for umpire validation."""
+        lines = response.strip().split("\n")
+        
+        is_valid = True  # Default to valid (allow clue unless clearly invalid)
+        reasoning = "Clue approved"
+        
+        for line in lines:
+            line = line.strip()
+            if line.startswith("VALID"):
+                is_valid = True
+                # Look for reasoning on same line or next lines
+                if ":" in line:
+                    reasoning = line.split(":", 1)[1].strip()
+                else:
+                    reasoning = "Clue follows game rules"
+                break
+            elif line.startswith("INVALID"):
+                is_valid = False
+                # Look for violation/reasoning on same line or next lines
+                if ":" in line:
+                    reasoning = line.split(":", 1)[1].strip()
+                else:
+                    reasoning = "Rule violation detected"
+                break
+            elif line.startswith("Violation:"):
+                is_valid = False
+                reasoning = line.replace("Violation:", "").strip()
+            elif line.startswith("Reasoning:") and not is_valid:
+                # Only use reasoning line for invalid clues
+                reasoning = line.replace("Reasoning:", "").strip()
+        
+        # If no clear VALID/INVALID found, default to valid to avoid false rejections
+        return is_valid, reasoning
+
     def _parse_lineman_response(
-        self, response: str, board_state: Dict, max_number: int
+        self, response: str, board_state: Dict, max_number: int|str
     ) -> List[str]:
         """Parse AI response for lineman guesses."""
         available_names = set(
@@ -203,11 +298,21 @@ class AIPlayer(Player):
                     if clean_word == available_name.upper():
                         if available_name not in guesses:
                             guesses.append(available_name)
-                            if len(guesses) >= max_number + 1:  # N+1 rule
+                            # Handle different clue types
+                            if max_number == "unlimited" or max_number == 0:
+                                # Continue collecting guesses for unlimited/zero clues
+                                continue
+                            elif isinstance(max_number, int) and len(guesses) >= max_number + 1:  # N+1 rule
                                 return guesses
 
         # If no valid guesses found, return first available name
         if not guesses and available_names:
             guesses = [next(iter(available_names))]
 
-        return guesses[: max_number + 1]  # Enforce N+1 limit
+        # Apply limits based on clue type
+        if max_number == "unlimited" or max_number == 0:
+            return guesses  # No limit for unlimited/zero clues
+        elif isinstance(max_number, int):
+            return guesses[: max_number + 1]  # Enforce N+1 limit
+        else:
+            return guesses  # Fallback
