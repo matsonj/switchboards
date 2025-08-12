@@ -12,6 +12,9 @@ As the **Operator**, You must guide your **Linemen** to identify all **Friendly 
 - **Enemy remaining Subscribers**: {{BLUE_REMAINING}}
 - **Revealed names**: {{REVEALED_NAMES}}
 
+### Game History - Previous Clues
+{{CLUE_HISTORY}}
+
 ## Secret Intelligence (EYES ONLY - Blue Team)
 You have access to classified intelligence about all identities on the board:
 

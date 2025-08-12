@@ -130,6 +130,104 @@ uv run switchboard list-models
 
 **Reasoning models** (o1, o3, grok4, etc.) are automatically detected and configured with appropriate parameters.
 
+## Architecture
+
+The Switchboard simulator uses a modular design with three key submodules that handle different aspects of AI-driven gameplay:
+
+**Key Submodules:**
+- **Prompt Manager**: Builds formatted prompts from markdown templates with variable substitution
+- **OpenRouter Adapter**: Handles AI API calls with cost tracking and retry logic  
+- **Umpire**: Validates operator clues for fairness (operator phase only)
+
+**Flow:** Build Prompt → Get AI Response → (Umpire Validation for Operators) → Process Results
+
+```mermaid
+flowchart TD
+    %% Game Initialization
+    A[Game Start] --> B[Load Names from YAML]
+    B --> C[Random Board Setup<br/>9 Red, 8 Blue, 7 Civilians, 1 Mole]
+    C --> D[Choose Starting Team]
+    
+    %% Main Game Loop
+    D --> E{Game Over?}
+    E -->|No| F[Current Team Turn]
+    E -->|Yes| Z[Game End]
+    
+    %% Turn Structure
+    F --> G[OPERATOR PHASE]
+    G --> H[LINEMAN PHASE]
+    H --> I[Switch Teams]
+    I --> E
+    
+    %% Operator Phase
+    G --> G1[Build Operator Prompt]
+    G1 --> G2[Get AI Response]
+    G2 --> G3[Validate Clue with Umpire]
+    G3 --> G4{Valid Clue?}
+    G4 -->|Yes| H
+    G4 -->|No| G5[End Turn with Penalty]
+    G5 --> I
+    
+    %% Lineman Phase
+    H --> H1[Build Lineman Prompt]
+    H1 --> H2[Get AI Response]
+    H2 --> H3[Parse Board Names]
+    H3 --> H4[Process Each Guess]
+    H4 --> H5{Correct Guess?}
+    H5 -->|Allied Subscriber| H6[Continue Guessing<br/>up to N+1 total]
+    H5 -->|Wrong Target| H7[End Turn]
+    H5 -->|The Mole| H8[Instant Loss]
+    H6 --> H9{More Guesses<br/>Available?}
+    H9 -->|Yes| H4
+    H9 -->|No| I
+    H7 --> I
+    H8 --> Z
+    
+    %% Umpire Validation Details
+    G6 --> U1[Load Umpire Prompt Template]
+    U1 --> U2[PromptManager:<br/>Insert Clue,<br/>Number,<br/>Board Names,<br/>Validation Rules]
+    U2 --> U3[AI Player: Call OpenRouter API]
+    U3 --> U4[Parse Response:<br/>VALID/INVALID + Reasoning]
+    U4 --> G7
+    
+    %% OpenRouter Integration
+    G3 --> API[OpenRouterAdapter]
+    H3 --> API
+    U3 --> API
+    API --> API1[Map Model Name<br/>gpt4 → openai/gpt-4]
+    API1 --> API2[Build API Request<br/>with Usage Tracking]
+    API2 --> API3[Call OpenRouter API<br/>with Retry Logic]
+    API3 --> API4[Parse Response +<br/>Extract Metadata]
+    API4 --> API5[Log AI Call Metrics:<br/>Tokens, Cost, Latency]
+    API5 --> API6[Return Response + Metadata]
+    
+    %% Prompt Template System
+    G1 --> PM[PromptManager]
+    H1 --> PM
+    U1 --> PM
+    PM --> PM1[Load Markdown Template]
+    PM1 --> PM2[Process VARIABLES:<br/>BOARD, IDENTITIES,<br/>CLUE_HISTORY, etc.]
+    PM2 --> PM3[Handle include:shared/game_rules.md]
+    PM3 --> PM4[Return Formatted Prompt]
+    
+    %% Logging System
+    API5 --> L1[Game Metadata JSONL<br/>Tokens, Costs, Latency]
+    H5 --> L2[Play-by-Play Log<br/>Human Readable Events]
+    Z --> L3[Box Score JSONL<br/>Team Performance + Board]
+    U4 --> L4[Umpire Log<br/>Validation Decisions]
+    
+    %% Styling
+    classDef gameLogic fill:#1f2937,stroke:#10b981,color:#fff
+    classDef aiSystem fill:#1e293b,stroke:#3b82f6,color:#fff
+    classDef promptSystem fill:#292524,stroke:#f59e0b,color:#fff
+    classDef logging fill:#1c1917,stroke:#ef4444,color:#fff
+    
+    class A,B,C,D,E,F,G,H,I,Z gameLogic
+    class G3,H3,U3,API,API1,API2,API3,API4,API5,API6 aiSystem
+    class G1,G2,H1,H2,U1,U2,PM,PM1,PM2,PM3,PM4 promptSystem
+    class L1,L2,L3,L4 logging
+```
+
 ## Project Structure
 
 ```
