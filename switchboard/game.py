@@ -271,20 +271,7 @@ class SwitchboardGame:
                 f'[{self.current_team}]{self.current_team.title()} Operator[/{self.current_team}]: "{clue}" ({number})'
             )
             
-            # Validate clue with umpire if available
-            if self.umpire_player:
-                validated_clue, validated_number, is_valid, reasoning = self._validate_clue_with_umpire(clue, number, board_state)
-                if not is_valid:
-                    # Record invalid clue in history for future reference
-                    self.record_clue(self.current_team, clue, number, invalid=True, invalid_reason=reasoning)
-                    # Log the rejected clue and end turn
-                    log_operator_clue(self.current_team, player.model_name, f"REJECTED: {clue}", number, self.turn_count, self.starting_team)
-                    return None, None  # Signal that turn should end
-            
-            # Log the clue
-            log_operator_clue(self.current_team, player.model_name, clue, number, self.turn_count, self.starting_team)
-            
-            # Log AI call metadata if this is an AI player
+            # Log AI call metadata first (before umpire validation) if this is an AI player
             if isinstance(player, AIPlayer):
                 metadata = player.get_last_call_metadata()
                 if metadata:
@@ -304,6 +291,19 @@ class SwitchboardGame:
                         turn_result=metadata.get("turn_result", {}),
                         game_continues=not self.game_over
                     )
+            
+            # Validate clue with umpire if available
+            if self.umpire_player:
+                validated_clue, validated_number, is_valid, reasoning = self._validate_clue_with_umpire(clue, number, board_state)
+                if not is_valid:
+                    # Record invalid clue in history for future reference
+                    self.record_clue(self.current_team, clue, number, invalid=True, invalid_reason=reasoning)
+                    # Log the rejected clue and end turn
+                    log_operator_clue(self.current_team, player.model_name, f"REJECTED: {clue}", number, self.turn_count, self.starting_team)
+                    return None, None  # Signal that turn should end
+            
+            # Log the clue
+            log_operator_clue(self.current_team, player.model_name, clue, number, self.turn_count, self.starting_team)
             
             return clue, number
 

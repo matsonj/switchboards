@@ -165,17 +165,23 @@ class OpenRouterAdapter:
                     metadata["openrouter_cost"] = float(total_cost)
                     logger.debug(f"Found OpenRouter cost: ${total_cost}")
                 
-                # Extract upstream cost from cost_details
+                # Extract upstream cost from cost_details using eval-connections approach
                 cost_details = getattr(usage, "cost_details", None)
-                if cost_details and hasattr(cost_details, "upstream_inference_cost"):
-                    upstream_cost = getattr(cost_details, "upstream_inference_cost", None)
+                if cost_details:
+                    # Try both object attribute and dictionary access for compatibility
+                    upstream_cost = None
+                    if hasattr(cost_details, "upstream_inference_cost"):
+                        upstream_cost = getattr(cost_details, "upstream_inference_cost", None)
+                    elif hasattr(cost_details, "get"):
+                        upstream_cost = cost_details.get("upstream_inference_cost")
+                    
                     if upstream_cost is not None:
                         metadata["upstream_cost"] = float(upstream_cost)
                         logger.debug(f"Found upstream cost: ${upstream_cost}")
                 
                 # Log success if we found any cost info
-                if total_cost is not None or (cost_details and getattr(cost_details, "upstream_inference_cost", None) is not None):
-                    logger.debug(f"Successfully extracted cost info: OR=${metadata['openrouter_cost']}, Upstream=${metadata['upstream_cost']}")
+                if total_cost is not None or metadata.get("upstream_cost") is not None:
+                    logger.debug(f"Successfully extracted cost info: OR=${metadata.get('openrouter_cost', 0.0)}, Upstream=${metadata.get('upstream_cost', 0.0)}")
                 else:
                     logger.debug("No cost information found in usage field")
             else:
