@@ -155,7 +155,7 @@ prompts/
 └── shared/
     └── game_rules.md   # Shared game rules for all prompts
 
-logs/                   # Game logs and statistics
+logs/                   # Game logs and performance analytics
 ```
 
 ## Advanced Game Features
@@ -270,13 +270,52 @@ Turn 2 - Blue Team
 ...
 ```
 
-## Logging
+## Logging & Analytics
 
-The simulator creates detailed logs:
+The simulator creates comprehensive logs for analysis and debugging:
 
-- **Console logs**: Real-time game progress
-- **Text logs**: Detailed debug information
-- **JSONL logs**: Structured data for analysis
+### Log Types
+
+1. **Play-by-Play Logs** (`logs/play_by_play_*.log`)
+   - Human-readable game events and board states
+   - Perfect for understanding game progression
+   - Shows clues, guesses, results, and team performance
+
+2. **Box Score Analytics** (`logs/box_scores_*.jsonl`)
+   - Team performance summaries in structured format
+   - Includes accuracy metrics, move counts, win/loss data
+   - Features formatted 5x5 boards showing all revealed names
+   - Ideal for comparing model performance across games
+
+3. **AI Call Metadata** (`logs/game_metadata_*.jsonl`)
+   - Detailed metrics for every AI interaction
+   - Tracks tokens used, API costs, response latency
+   - Turn-by-turn success/failure analysis
+   - Essential for cost optimization and model comparison
+
+4. **Umpire Validation Logs** (`logs/umpire_*.log`)
+   - Consolidated clue validation decisions
+   - Shows reasoning for accepting/rejecting clues
+   - Helps debug prompt quality and game fairness
+
+5. **Debug Logs** (`logs/switchboard_*.log`)
+   - Technical debug information
+   - Full API request/response details when using `--verbose`
+
+### Performance Tracking
+
+The JSONL logs enable powerful analysis:
+
+```bash
+# Analyze model costs across games
+cat logs/game_metadata_*.jsonl | jq '.cost_usd' | awk '{sum+=$1} END {print "Total cost: $" sum}'
+
+# Compare model accuracy by team
+cat logs/box_scores_*.jsonl | jq '{team: .team, accuracy: .accuracy, model: .model}'
+
+# Track token usage patterns
+cat logs/game_metadata_*.jsonl | jq '{model: .model, tokens: .tokens_used, role: .role}'
+```
 
 ## Security Features
 

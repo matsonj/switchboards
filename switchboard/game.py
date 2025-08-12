@@ -13,7 +13,8 @@ from rich.table import Table
 from switchboard.player import AIPlayer, HumanPlayer
 from switchboard.utils.logging import (
     log_game_start, log_operator_clue, log_lineman_guess, 
-    log_game_end, log_box_score, log_turn_end_status
+    log_game_end, log_box_score, log_turn_end_status, log_umpire_rejection, log_umpire_penalty,
+    log_ai_call_metadata, format_turn_label
 )
 
 console = Console()
@@ -249,8 +250,10 @@ class SwitchboardGame:
             # Validate clue with umpire if available
             if self.umpire_player:
                 board_state = self.get_board_state(reveal_all=True)
-                validated_clue, validated_number, is_valid = self._validate_clue_with_umpire(clue, number, board_state)
+                validated_clue, validated_number, is_valid, reasoning = self._validate_clue_with_umpire(clue, number, board_state)
                 if not is_valid:
+                    # Record invalid clue in history for future reference
+                    self.record_clue(self.current_team, clue, number, invalid=True, invalid_reason=reasoning)
                     # Log the rejected clue and end turn
                     log_operator_clue(self.current_team, "human", f"REJECTED: {clue}", number, self.turn_count, self.starting_team)
                     return None, None  # Signal that turn should end
@@ -270,14 +273,38 @@ class SwitchboardGame:
             
             # Validate clue with umpire if available
             if self.umpire_player:
-                validated_clue, validated_number, is_valid = self._validate_clue_with_umpire(clue, number, board_state)
+                validated_clue, validated_number, is_valid, reasoning = self._validate_clue_with_umpire(clue, number, board_state)
                 if not is_valid:
+                    # Record invalid clue in history for future reference
+                    self.record_clue(self.current_team, clue, number, invalid=True, invalid_reason=reasoning)
                     # Log the rejected clue and end turn
                     log_operator_clue(self.current_team, player.model_name, f"REJECTED: {clue}", number, self.turn_count, self.starting_team)
                     return None, None  # Signal that turn should end
             
             # Log the clue
             log_operator_clue(self.current_team, player.model_name, clue, number, self.turn_count, self.starting_team)
+            
+            # Log AI call metadata if this is an AI player
+            if isinstance(player, AIPlayer):
+                metadata = player.get_last_call_metadata()
+                if metadata:
+                    turn_label = format_turn_label(self.turn_count, self.current_team, self.starting_team)
+                    log_ai_call_metadata(
+                        game_id=self.game_id,
+                        model_name=player.model_name,
+                        call_type=metadata["call_type"],
+                        team=self.current_team,
+                        turn=turn_label,
+                        input_tokens=metadata["input_tokens"],
+                        output_tokens=metadata["output_tokens"],
+                        total_tokens=metadata["total_tokens"],
+                        latency_ms=metadata["latency_ms"],
+                        openrouter_cost=metadata.get("openrouter_cost", 0.0),
+                        upstream_cost=metadata.get("upstream_cost", 0.0),
+                        turn_result=metadata.get("turn_result", {}),
+                        game_continues=not self.game_over
+                    )
+            
             return clue, number
 
     def get_lineman_guesses(self, clue: str, number: int|str) -> List[str]:
@@ -349,14 +376,62 @@ class SwitchboardGame:
                 board_state, clue, number, self.prompt_files[prompt_key]
             )
 
+            # Track guess results for metadata logging
+            guess_results = []
+            
             # Process guesses one by one
             for guess in guesses:
                 console.print(
                     f"[{self.current_team}]{self.current_team.title()} Lineman[/{self.current_team}] guesses: {guess}"
                 )
                 result = self.process_guess(guess)
+                
+                # Track result for metadata
+                if guess in self.identities:
+                    identity = self.identities[guess]
+                    if identity == f"{self.current_team}_subscriber":
+                        guess_results.append({"guess": guess, "result": "correct"})
+                    elif identity == "mole":
+                        guess_results.append({"guess": guess, "result": "mole"})
+                    elif identity == "civilian":
+                        guess_results.append({"guess": guess, "result": "civilian"})
+                    else:  # enemy subscriber
+                        guess_results.append({"guess": guess, "result": "enemy"})
+                
                 if not result:  # Wrong guess ends turn
                     break
+
+            # Log AI call metadata if this is an AI player
+            if isinstance(player, AIPlayer):
+                metadata = player.get_last_call_metadata()
+                if metadata:
+                    turn_label = format_turn_label(self.turn_count, self.current_team, self.starting_team)
+                    
+                    # Add detailed results from processing guesses
+                    turn_result = metadata.get("turn_result", {})
+                    turn_result.update({
+                        "correct_guesses": sum(1 for r in guess_results if r["result"] == "correct"),
+                        "civilian_hits": sum(1 for r in guess_results if r["result"] == "civilian"),
+                        "enemy_hits": sum(1 for r in guess_results if r["result"] == "enemy"),
+                        "mole_hits": sum(1 for r in guess_results if r["result"] == "mole"),
+                        "guess_details": guess_results
+                    })
+                    
+                    log_ai_call_metadata(
+                        game_id=self.game_id,
+                        model_name=player.model_name,
+                        call_type=metadata["call_type"],
+                        team=self.current_team,
+                        turn=turn_label,
+                        input_tokens=metadata["input_tokens"],
+                        output_tokens=metadata["output_tokens"],
+                        total_tokens=metadata["total_tokens"],
+                        latency_ms=metadata["latency_ms"],
+                        openrouter_cost=metadata.get("openrouter_cost", 0.0),
+                        upstream_cost=metadata.get("upstream_cost", 0.0),
+                        turn_result=turn_result,
+                        game_continues=not self.game_over
+                    )
 
             return guesses
 
@@ -435,14 +510,16 @@ class SwitchboardGame:
         )
         return red_remaining, blue_remaining
 
-    def record_clue(self, team: str, clue: str, number: int|str):
+    def record_clue(self, team: str, clue: str, number: int|str, invalid: bool = False, invalid_reason: str = ""):
         """Record a clue for the game history."""
         clue_entry = {
             "turn": self.turn_count,
             "team": team,
             "clue": clue,
             "number": number,
-            "guesses": []
+            "guesses": [],
+            "invalid": invalid,
+            "invalid_reason": invalid_reason
         }
         self.clue_history.append(clue_entry)
 
@@ -468,11 +545,16 @@ class SwitchboardGame:
             turn_label = f"Turn {entry['turn'] + 1}{turn_letter}"
             
             # Format the clue line
-            clue_line = f"{turn_label}: {entry['team'].title()} Clue: \"{entry['clue']}\" ({entry['number']})"
+            if entry.get("invalid", False):
+                clue_line = f"{turn_label}: {entry['team'].title()} Clue: \"{entry['clue']}\" ({entry['number']}) [INVALID: {entry.get('invalid_reason', 'rule violation')}]"
+            else:
+                clue_line = f"{turn_label}: {entry['team'].title()} Clue: \"{entry['clue']}\" ({entry['number']})"
             history_lines.append(clue_line)
             
             # Format the outcomes
-            if entry["guesses"]:
+            if entry.get("invalid", False):
+                history_lines.append("  → Turn ended due to invalid clue")
+            elif entry["guesses"]:
                 outcomes = []
                 for guess in entry["guesses"]:
                     if guess["outcome"] == "correct":
@@ -492,25 +574,84 @@ class SwitchboardGame:
         
         return "\n".join(history_lines).strip()
 
-    def _validate_clue_with_umpire(self, clue: str, number: int|str, board_state: Dict) -> Tuple[str, int|str, bool]:
-        """Validate clue with umpire and handle invalid clues. Returns (clue, number, is_valid)."""
+    def _validate_clue_with_umpire(self, clue: str, number: int|str, board_state: Dict) -> Tuple[str, int|str, bool, str]:
+        """Validate clue with umpire and handle invalid clues. Returns (clue, number, is_valid, reasoning)."""
         try:
             is_valid, reasoning = self.umpire_player.get_umpire_validation(
                 clue, number, self.current_team, board_state, self.prompt_files["umpire"]
             )
             
+            # Log AI call metadata for umpire validation
+            if isinstance(self.umpire_player, AIPlayer):
+                metadata = self.umpire_player.get_last_call_metadata()
+                if metadata:
+                    turn_label = format_turn_label(self.turn_count, self.current_team, self.starting_team)
+                    
+                    # Update turn result with umpire validation outcome
+                    turn_result = metadata.get("turn_result", {})
+                    turn_result.update({
+                        "evaluated_clue": clue,
+                        "evaluated_number": number
+                    })
+                    
+                    log_ai_call_metadata(
+                        game_id=self.game_id,
+                        model_name=self.umpire_player.model_name,
+                        call_type=metadata["call_type"],
+                        team=f"umpire_{self.current_team}",  # Include which team's clue was evaluated
+                        turn=turn_label,
+                        input_tokens=metadata["input_tokens"],
+                        output_tokens=metadata["output_tokens"],
+                        total_tokens=metadata["total_tokens"],
+                        latency_ms=metadata["latency_ms"],
+                        openrouter_cost=metadata.get("openrouter_cost", 0.0),
+                        upstream_cost=metadata.get("upstream_cost", 0.0),
+                        turn_result=turn_result,
+                        game_continues=not self.game_over
+                    )
+            
             if is_valid:
                 console.print(f"[green]🟢 Umpire: Clue APPROVED[/green]")
-                return clue, number, True
+                return clue, number, True, reasoning
             else:
                 console.print(f"[red]🔴 Umpire: Clue REJECTED - {reasoning}[/red]")
                 console.print(f"[yellow]⚠️  Turn ended due to invalid clue[/yellow]")
-                return clue, number, False
+                log_umpire_rejection(self.current_team, clue, number, reasoning)
+                return clue, number, False, reasoning
                 
         except Exception as e:
             logger.error(f"Error in umpire validation: {e}")
             console.print(f"[yellow]⚠️  Umpire error, allowing original clue[/yellow]")
-            return clue, number, True
+            return clue, number, True, "Umpire error - clue allowed"
+
+    def apply_invalid_clue_penalty(self):
+        """Apply penalty for invalid clue: remove one of the opposing team's words."""
+        # Get opposing team
+        opposing_team = "blue" if self.current_team == "red" else "red"
+        
+        # Find unrevealed opposing team subscribers
+        opposing_subscribers = [
+            name for name, identity in self.identities.items()
+            if identity == f"{opposing_team}_subscriber" and not self.revealed[name]
+        ]
+        
+        if opposing_subscribers:
+            # Randomly select one to remove
+            penalty_word = random.choice(opposing_subscribers)
+            self.revealed[penalty_word] = True
+            
+            console.print(f"[yellow]⚖️  PENALTY: {penalty_word} revealed for {opposing_team.upper()} team due to invalid clue[/yellow]")
+            
+            # Log the penalty action
+            log_umpire_penalty(self.current_team, opposing_team, penalty_word)
+            
+            logger.info(f"Invalid clue penalty applied: revealed {penalty_word} for {opposing_team} team")
+            
+            return penalty_word
+        else:
+            console.print(f"[yellow]⚖️  PENALTY: No unrevealed {opposing_team.upper()} subscribers to remove[/yellow]")
+            logger.info(f"Invalid clue penalty: no unrevealed {opposing_team} subscribers available")
+            return None
 
     def switch_teams(self):
         """Switch to the other team."""
@@ -541,7 +682,8 @@ class SwitchboardGame:
             
             # Check if clue was rejected by umpire
             if clue is None or number is None:
-                # Clue was rejected, end turn immediately
+                # Clue was rejected, apply penalty and end turn immediately
+                self.apply_invalid_clue_penalty()
                 self.switch_teams()
                 continue
 

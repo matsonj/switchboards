@@ -43,9 +43,7 @@ def setup_logging(log_dir: Path, verbose: bool = False):
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
 
-    # JSONL logger for structured data
-    jsonl_file = log_dir / f"switchboard_{timestamp}.jsonl"
-    setup_jsonl_logger(jsonl_file)
+
     
     # Play-by-play logger for clean game events
     play_by_play_file = log_dir / f"play_by_play_{timestamp}.log"
@@ -54,11 +52,15 @@ def setup_logging(log_dir: Path, verbose: bool = False):
     # Box score logger for team summaries
     box_score_file = log_dir / f"box_scores_{timestamp}.jsonl"
     setup_box_score_logger(box_score_file)
+    
+    # Game metadata logger for detailed metrics
+    metadata_file = log_dir / f"game_metadata_{timestamp}.jsonl"
+    setup_metadata_logger(metadata_file)
 
     logging.info(f"Logging initialized. Log file: {log_file}")
-    logging.info(f"JSONL log file: {jsonl_file}")
     logging.info(f"Play-by-play log: {play_by_play_file}")
     logging.info(f"Box score log: {box_score_file}")
+    logging.info(f"Game metadata log: {metadata_file}")
 
 
 def setup_jsonl_logger(jsonl_file: Path):
@@ -138,6 +140,23 @@ def setup_box_score_logger(box_score_file: Path):
     box_handler.setFormatter(box_formatter)
 
     box_logger.addHandler(box_handler)
+
+
+def setup_metadata_logger(metadata_file: Path):
+    """Setup metadata logger for detailed game metrics."""
+    metadata_logger = logging.getLogger("switchboard.metadata")
+    metadata_logger.setLevel(logging.INFO)
+    metadata_logger.propagate = False
+
+    # Create metadata handler
+    metadata_handler = logging.FileHandler(metadata_file)
+    metadata_handler.setLevel(logging.INFO)
+
+    # Simple formatter for JSONL (just the message)
+    metadata_formatter = logging.Formatter("%(message)s")
+    metadata_handler.setFormatter(metadata_formatter)
+
+    metadata_logger.addHandler(metadata_handler)
 
 
 def log_game_start(game_id: str, red_model: str, blue_model: str, board: list, identities: dict):
@@ -242,6 +261,24 @@ def log_game_end(winner: str, turns: int, duration: float):
     pbp_logger.info("")
 
 
+def log_umpire_rejection(team: str, clue: str, number: int|str, reasoning: str):
+    """Log umpire clue rejection."""
+    pbp_logger = logging.getLogger("switchboard.play_by_play")
+    if reasoning in ["Rule violation detected", "Clue approved"]:
+        pbp_logger.info(f"🔴 UMPIRE REJECTION: {team.upper()} team clue '{clue}' ({number}) - {reasoning} (check detailed logs for specifics)")
+    else:
+        pbp_logger.info(f"🔴 UMPIRE REJECTION: {team.upper()} team clue '{clue}' ({number}) - {reasoning}")
+    pbp_logger.info(f"Turn ended due to invalid clue")
+    pbp_logger.info("")
+
+
+def log_umpire_penalty(violating_team: str, penalized_team: str, revealed_word: str):
+    """Log umpire penalty for invalid clue."""
+    pbp_logger = logging.getLogger("switchboard.play_by_play")
+    pbp_logger.info(f"⚖️  PENALTY: {revealed_word} revealed for {penalized_team.upper()} team due to {violating_team.upper()} team's invalid clue")
+    pbp_logger.info("")
+
+
 def log_box_score(game_id: str, red_model: str, blue_model: str, result: dict):
     """Log team performance summary as JSONL."""
     box_logger = logging.getLogger("switchboard.box_score")
@@ -264,12 +301,34 @@ def log_box_score(game_id: str, red_model: str, blue_model: str, result: dict):
         "accuracy": sum(1 for move in blue_moves if move['correct']) / len(blue_moves) if blue_moves else 0,
     }
     
+    # Format the final board nicely
+    final_board = result.get('final_board', {})
+    board_layout = []
+    if 'board' in final_board and 'identities' in final_board and 'revealed' in final_board:
+        board = final_board['board']
+        identities = final_board['identities']
+        revealed = final_board['revealed']
+        
+        for i in range(0, 25, 5):
+            row = []
+            for j in range(5):
+                idx = i + j
+                name = board[idx]
+                identity = identities.get(name, 'unknown')
+                is_revealed = revealed.get(name, False)
+                
+                # Format name with identity and revealed status
+                display_name = f"[{name}]" if is_revealed else name
+                row.append(f"{display_name:>12} ({identity[0].upper()})")
+            board_layout.append(" | ".join(row))
+    
     box_score = {
         "timestamp": time.time(),
         "game_id": game_id,
         "winner": result.get('winner'),
         "duration": result.get('duration', 0),
         "total_turns": result.get('turns', 0),
+        "board_layout": board_layout,
         "red_team": {
             "model": red_model,
             **red_stats
@@ -286,3 +345,44 @@ def log_box_score(game_id: str, red_model: str, blue_model: str, result: dict):
 def log_game_result(result: Dict[str, Any]):
     """Log final game result."""
     log_game_event("game_result", result)
+
+
+def log_ai_call_metadata(
+    game_id: str,
+    model_name: str,
+    call_type: str,  # operator/lineman/umpire
+    team: str,
+    turn: str,  # 1a, 1b, 2a, etc.
+    input_tokens: int,
+    output_tokens: int,
+    total_tokens: int,
+    latency_ms: float,
+    openrouter_cost: float = 0.0,
+    upstream_cost: float = 0.0,
+    turn_result: dict = None,
+    game_continues: bool = True
+):
+    """Log detailed AI call metadata for analysis."""
+    metadata_logger = logging.getLogger("switchboard.metadata")
+    
+    metadata = {
+        "timestamp": time.time(),
+        "game_id": game_id,
+        "model_name": model_name,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens, 
+        "total_tokens": total_tokens,
+        "latency_ms": latency_ms,
+        "openrouter_cost": openrouter_cost,
+        "upstream_cost": upstream_cost,
+        "type": call_type,
+        "team": team,
+        "turn": turn,
+        "game_continues": 1 if game_continues else 0
+    }
+    
+    # Add turn-specific results
+    if turn_result:
+        metadata.update(turn_result)
+    
+    metadata_logger.info(json.dumps(metadata))

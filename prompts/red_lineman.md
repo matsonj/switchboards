@@ -29,13 +29,13 @@ Use your Operator's clue to identify **Red Allied Subscribers** on the board. Av
 - You can guess as many names as you want with no limit
 - The exact number of related subscribers is unknown to you
 {% else %}
-- You can guess up to **{{NUMBER}} + 1** names maximum (the N+1 rule)
-- Only guess more than N if previous clues had undetected Subscribers.
-- You should find exactly **{{NUMBER}}** Red Allied Subscribers for the current clue.
+- You should find exactly **{{NUMBER}}** Red Allied Subscribers for the current clue But if there has been a previous clue that was not fully satisfied, you may guess {{ NUMBER }} + 1 extra time
 {% endif %}
-- **STOP immediately** if you're uncertain - wrong guesses help the enemy
 - Think about what connects the names semantically based on the clue
 - The Operator chose this clue for a reason - trust their intelligence
+- Make sure to check "Game History" for clues where not all subscribers were found. Rejected Clues should be particularly interesting!
+- Submit guesses with likelihood of a match from best match first in mind
+- Your number of guesses should never exceed the remaining amount of subscribers
 
 ## Your Response
 List your guesses, **one name per line**. You may guess fewer than the maximum allowed if you're unsure. You must guess at least one word.

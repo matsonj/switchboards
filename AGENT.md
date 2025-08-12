@@ -35,11 +35,12 @@ prompts/                    # Markdown prompt templates
 ├── blue_operator.md
 └── blue_lineman.md
 
-logs/                       # Game logs and JSONL data
+logs/                       # Game logs and analysis data
 ├── switchboard_*.log       # Detailed debug logs
-├── switchboard_*.jsonl     # Structured event data
 ├── play_by_play_*.log      # Clean game events (clues, guesses, results)
-└── box_scores_*.jsonl      # Team performance summaries
+├── box_scores_*.jsonl      # Team performance summaries with formatted boards
+├── game_metadata_*.jsonl   # AI call metrics (tokens, costs, latency, results)
+└── umpire_*.log           # Consolidated umpire validation logs
 ```
 
 ## Code Style & Conventions
@@ -113,17 +114,26 @@ The simulator produces multiple log formats for different analysis needs:
 2. **Box Score Data** (`box_scores_*.jsonl`)
    - Team performance summaries in JSONL format
    - Includes accuracy, move counts, win/loss data
+   - Features formatted 5x5 board showing revealed names
    - Ideal for model performance comparison over time
 
-3. **Structured Event Data** (`switchboard_*.jsonl`)
-   - Detailed technical logs with full AI exchanges
-   - Includes prompts, responses, timing data
-   - For deep technical analysis
+3. **Game Metadata** (`game_metadata_*.jsonl`)
+   - Detailed AI call metrics (tokens, costs, latency)
+   - Turn-by-turn results and success/failure tracking
+   - Model performance analytics for cost optimization
+   - Essential for model comparison and evaluation
+
+4. **Umpire Logs** (`umpire_*.log`)
+   - Consolidated clue validation logs with team headers
+   - Shows all umpire decisions and reasoning
+   - Helps debug prompt quality and fairness issues
 
 ## Known Issues & TODOs
 - [x] Implement model listing command (`list-models`) ✅
 - [x] Add configuration file support for model mappings ✅
 - [x] Implement expert clue types (0 and unlimited) ✅
+- [x] Implement comprehensive logging with cost tracking ✅
+- [x] Clean up duplicate names in inputs/names.yaml ✅
 - [ ] Improve AI response parsing robustness
 - [ ] Add game replay functionality from JSONL logs
 - [ ] Implement tournament mode for model evaluation

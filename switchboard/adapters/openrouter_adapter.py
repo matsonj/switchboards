@@ -2,8 +2,9 @@
 
 import logging
 import os
+import time
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import yaml
 from openai import OpenAI
@@ -70,6 +71,14 @@ class OpenRouterAdapter:
     )
     def call_model(self, model_name: str, prompt: str) -> str:
         """Call AI model with retry logic."""
+        result = self.call_model_with_metadata(model_name, prompt)
+        return result[0]  # Return just the content
+
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)
+    )
+    def call_model_with_metadata(self, model_name: str, prompt: str) -> Tuple[str, Dict]:
+        """Call AI model with retry logic and return detailed metadata."""
         try:
             # Map model name to OpenRouter model ID
             model_id = self.model_mappings.get(model_name, model_name)
@@ -83,47 +92,104 @@ class OpenRouterAdapter:
                 f"Calling model {model_id} (from {model_name}) with prompt length: {len(prompt)}"
             )
 
+            # Track timing
+            start_time = time.time()
+
             # Check if this is a reasoning model that doesn't support certain parameters
             is_reasoning_model = self._is_reasoning_model(model_id)
 
             # Create request parameters based on model type
             is_gemini_reasoning = model_id.startswith('google/gemini-2.5')
             
+            # Common parameters for all model types
+            common_params = {
+                "model": model_id,
+                "messages": [{"role": "user", "content": prompt}],
+                "extra_body": {
+                    "usage": {
+                        "include": True  # Request cost and usage information
+                    }
+                }
+            }
+            
             if is_reasoning_model:
-                response = self.client.chat.completions.create(
-                    model=model_id,
-                    messages=[{"role": "user", "content": prompt}],
-                )
+                response = self.client.chat.completions.create(**common_params)
             elif is_gemini_reasoning:
                 # Gemini reasoning models: no max_tokens limit, temperature 0.0
                 response = self.client.chat.completions.create(
-                    model=model_id,
-                    messages=[{"role": "user", "content": prompt}],
+                    **common_params,
                     temperature=0.0,
                 )
             else:
                 response = self.client.chat.completions.create(
-                    model=model_id,
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=100,
+                    **common_params,
+                    max_tokens=5000,
                     temperature=0.0,
                 )
 
+            end_time = time.time()
+            latency_ms = (end_time - start_time) * 1000
+
             content = response.choices[0].message.content
 
-            # Log token usage if available
+            # Extract metadata
+            metadata = {
+                "model_id": model_id,
+                "latency_ms": latency_ms,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "openrouter_cost": 0.0,
+                "upstream_cost": 0.0,
+
+            }
+
+            # Extract token usage if available
             if hasattr(response, "usage") and response.usage:
+                metadata["input_tokens"] = getattr(response.usage, "prompt_tokens", 0)
+                metadata["output_tokens"] = getattr(response.usage, "completion_tokens", 0)
+                metadata["total_tokens"] = getattr(response.usage, "total_tokens", 0)
+                
                 logger.info(
-                    f"Model call completed. Tokens: {response.usage.total_tokens}"
+                    f"Model call completed. Tokens: {metadata['total_tokens']}, "
+                    f"Latency: {latency_ms:.1f}ms"
                 )
 
-            return content or ""
+            # Extract cost information from response usage field
+            if hasattr(response, "usage") and response.usage:
+                usage = response.usage
+                
+                # Extract cost information using the eval-connections approach
+                total_cost = getattr(usage, "cost", None)
+                if total_cost is not None:
+                    metadata["openrouter_cost"] = float(total_cost)
+                    logger.debug(f"Found OpenRouter cost: ${total_cost}")
+                
+                # Extract upstream cost from cost_details
+                cost_details = getattr(usage, "cost_details", None)
+                if cost_details and hasattr(cost_details, "upstream_inference_cost"):
+                    upstream_cost = getattr(cost_details, "upstream_inference_cost", None)
+                    if upstream_cost is not None:
+                        metadata["upstream_cost"] = float(upstream_cost)
+                        logger.debug(f"Found upstream cost: ${upstream_cost}")
+                
+                # Log success if we found any cost info
+                if total_cost is not None or (cost_details and getattr(cost_details, "upstream_inference_cost", None) is not None):
+                    logger.debug(f"Successfully extracted cost info: OR=${metadata['openrouter_cost']}, Upstream=${metadata['upstream_cost']}")
+                else:
+                    logger.debug("No cost information found in usage field")
+            else:
+                logger.debug("No usage information in response")
+
+            return content or "", metadata
 
         except Exception as e:
             logger.error(
                 f"Error calling model {model_name} (mapped to {model_id}): {e}"
             )
             raise
+
+
 
     def _is_reasoning_model(self, model_id: str) -> bool:
         """Check if model is a reasoning model that doesn't support standard parameters."""
