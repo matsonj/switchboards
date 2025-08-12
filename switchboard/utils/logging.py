@@ -12,7 +12,7 @@ def setup_logging(log_dir: Path, verbose: bool = False):
     log_dir.mkdir(exist_ok=True)
 
     # Configure root logger
-    level = logging.DEBUG if verbose else logging.INFO
+    level = logging.DEBUG if verbose else logging.WARNING
 
     # Create formatters
     console_formatter = logging.Formatter(

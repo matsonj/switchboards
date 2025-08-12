@@ -41,11 +41,13 @@ class SwitchboardGame:
         blue_operator_prompt: str = "",
         blue_lineman_prompt: str = "",
         umpire_prompt: str = "",
+        interactive_mode: Optional[str] = None,
     ):
         self.names_file = names_file
         self.red_player = red_player
         self.blue_player = blue_player
         self.umpire_player = umpire_player
+        self.interactive_mode = interactive_mode
         self.prompt_files = {
             "red_operator": red_operator_prompt,
             "red_lineman": red_lineman_prompt,
@@ -161,6 +163,61 @@ class SwitchboardGame:
 
         return state
 
+    def _format_board_for_lineman_cli(self, board_state: dict) -> str:
+        """Format the board for lineman display with revealed status."""
+        board = board_state["board"]
+        revealed = board_state["revealed"]
+        
+        # Create a 5x5 grid display
+        lines = []
+        for row in range(5):
+            row_items = []
+            for col in range(5):
+                idx = row * 5 + col
+                name = board[idx]
+                
+                # Mark revealed names with brackets
+                if revealed.get(name, False):
+                    display_name = f"[{name}]"
+                else:
+                    display_name = name
+                
+                row_items.append(f"{display_name:>12}")
+            
+            lines.append(" |".join(row_items))
+        
+        return "\n".join(lines)
+
+    def display_board_start(self):
+        """Display the initial board state at game start."""
+        console.print(f"\n[bold]Game Board - {self.current_team.title()} Team Goes First[/bold]")
+        
+        # Create a 5x5 grid
+        table = Table(show_header=False, show_lines=True)
+        for _ in range(5):
+            table.add_column(justify="center", min_width=12)
+
+        for row in range(5):
+            row_items = []
+            for col in range(5):
+                idx = row * 5 + col
+                name = self.board[idx]
+                row_items.append(f"[white]{name}[/white]")
+            table.add_row(*row_items)
+
+        console.print(table)
+        
+        # Show team info
+        red_total = sum(1 for identity in self.identities.values() if identity == "red_subscriber")
+        blue_total = sum(1 for identity in self.identities.values() if identity == "blue_subscriber")
+        civilian_total = sum(1 for identity in self.identities.values() if identity == "civilian")
+        
+        console.print(f"\n[red]Red Team:[/red] {red_total} subscribers")
+        console.print(f"[blue]Blue Team:[/blue] {blue_total} subscribers")
+        console.print(f"[dim]Civilians:[/dim] {civilian_total}")
+        console.print(f"[black on white]The Mole:[/black on white] 1")
+        console.print("")
+
     def display_board(self, reveal_all: bool = False):
         """Display the current board state."""
         state = self.get_board_state(reveal_all)
@@ -226,9 +283,58 @@ class SwitchboardGame:
         player = self.red_player if self.current_team == "red" else self.blue_player
         prompt_key = f"{self.current_team}_operator"
 
-        if isinstance(player, HumanPlayer):
-            self.display_board(reveal_all=True)  # Operator sees all identities
-            console.print(f"\n[bold]{self.current_team.title()} Operator Turn[/bold]")
+        # Check if this specific role should be human
+        is_human_operator = (self.interactive_mode == f"{self.current_team}-operator")
+        
+        if is_human_operator:
+            # Display the operator prompt first
+            board_state = self.get_board_state(reveal_all=True)
+            from switchboard.prompt_manager import PromptManager
+            prompt_manager = PromptManager()
+            
+            # Calculate remaining subscribers
+            red_remaining = sum(
+                1 for name, identity in board_state["identities"].items()
+                if identity == "red_subscriber" and not board_state["revealed"].get(name, False)
+            )
+            blue_remaining = sum(
+                1 for name, identity in board_state["identities"].items()
+                if identity == "blue_subscriber" and not board_state["revealed"].get(name, False)
+            )
+            revealed_names = [name for name, revealed in board_state["revealed"].items() if revealed]
+            
+            # Categorize identities for cleaner prompt formatting
+            red_subscribers = [name for name, identity in board_state["identities"].items() 
+                             if identity == "red_subscriber"]
+            blue_subscribers = [name for name, identity in board_state["identities"].items() 
+                              if identity == "blue_subscriber"]
+            civilians = [name for name, identity in board_state["identities"].items() 
+                        if identity == "civilian"]
+            mole = [name for name, identity in board_state["identities"].items() 
+                   if identity == "mole"]
+            
+            prompt = prompt_manager.load_prompt(
+                self.prompt_files[prompt_key],
+                {
+                    "board": board_state["board"],
+                    "revealed": board_state["revealed"],
+                    "team": self.current_team,
+                    "red_remaining": red_remaining,
+                    "blue_remaining": blue_remaining,
+                    "revealed_names": ", ".join(revealed_names) if revealed_names else "None",
+                    "red_subscribers": ", ".join(red_subscribers),
+                    "blue_subscribers": ", ".join(blue_subscribers),
+                    "civilians": ", ".join(civilians),
+                    "mole": ", ".join(mole),
+                },
+            )
+            
+            console.print(f"\n[bold]{self.current_team.title()} Operator Turn (Human)[/bold]")
+            console.print(f"[yellow]{'='*80}[/yellow]")
+            console.print("[yellow]OPERATOR PROMPT:[/yellow]")
+            console.print(f"[yellow]{'='*80}[/yellow]")
+            console.print(prompt)
+            console.print(f"[yellow]{'='*80}[/yellow]\n")
 
             clue = console.input("Enter your clue: ").strip()
             number: int|str
@@ -312,10 +418,42 @@ class SwitchboardGame:
         player = self.red_player if self.current_team == "red" else self.blue_player
         prompt_key = f"{self.current_team}_lineman"
 
-        if isinstance(player, HumanPlayer):
-            self.display_board(reveal_all=False)  # Lineman sees only public board
-            console.print(f"\n[bold]{self.current_team.title()} Lineman Turn[/bold]")
-            console.print(f'Clue: "{clue}" ({number})')
+        # Check if this specific role should be human
+        is_human_lineman = (self.interactive_mode == f"{self.current_team}-lineman")
+        
+        if is_human_lineman:
+            # Display the lineman prompt first
+            board_state = self.get_board_state(reveal_all=False)
+            from switchboard.prompt_manager import PromptManager
+            prompt_manager = PromptManager()
+            
+            # Filter board to only show available (unrevealed) names
+            available_names = [
+                name for name in board_state["board"] 
+                if not board_state["revealed"].get(name, False)
+            ]
+            
+            # Format available names as a simple list
+            available_names_formatted = ", ".join(available_names)
+            
+            prompt = prompt_manager.load_prompt(
+                self.prompt_files[prompt_key],
+                {
+                    "board": self._format_board_for_lineman_cli(board_state),
+                    "available_names": available_names_formatted,
+                    "clue_history": board_state.get("clue_history", "None (game just started)"),
+                    "clue": clue,
+                    "number": number,
+                    "team": self.current_team,
+                },
+            )
+            
+            console.print(f"\n[bold]{self.current_team.title()} Lineman Turn (Human)[/bold]")
+            console.print(f"[yellow]{'='*80}[/yellow]")
+            console.print("[yellow]LINEMAN PROMPT:[/yellow]")
+            console.print(f"[yellow]{'='*80}[/yellow]")
+            console.print(prompt)
+            console.print(f"[yellow]{'='*80}[/yellow]\n")
 
             guesses: List[str] = []
             
@@ -510,6 +648,17 @@ class SwitchboardGame:
         )
         return red_remaining, blue_remaining
 
+    def display_game_status(self):
+        """Display the current game status showing remaining subscribers."""
+        red_remaining, blue_remaining = self.get_remaining_subscribers()
+        
+        # Always show starting team first
+        if self.starting_team == "red":
+            console.print(f"[bold]Status:[/bold] [red]Red {red_remaining}[/red], [blue]Blue {blue_remaining}[/blue]")
+        else:
+            console.print(f"[bold]Status:[/bold] [blue]Blue {blue_remaining}[/blue], [red]Red {red_remaining}[/red]")
+        console.print("")
+
     def record_clue(self, team: str, clue: str, number: int|str, invalid: bool = False, invalid_reason: str = ""):
         """Record a clue for the game history."""
         clue_entry = {
@@ -577,9 +726,112 @@ class SwitchboardGame:
     def _validate_clue_with_umpire(self, clue: str, number: int|str, board_state: Dict) -> Tuple[str, int|str, bool, str]:
         """Validate clue with umpire and handle invalid clues. Returns (clue, number, is_valid, reasoning)."""
         try:
-            is_valid, reasoning = self.umpire_player.get_umpire_validation(
-                clue, number, self.current_team, board_state, self.prompt_files["umpire"]
-            )
+            if self.interactive_mode == "umpire":
+                # Human umpire validation
+                from switchboard.prompt_manager import PromptManager
+                prompt_manager = PromptManager()
+                
+                # Get team's allied subscribers
+                allied_subscribers = [
+                    name for name, identity in board_state["identities"].items()
+                    if identity == f"{self.current_team}_subscriber"
+                ]
+                
+                prompt = prompt_manager.load_prompt(
+                    self.prompt_files["umpire"],
+                    {
+                        "clue": clue,
+                        "number": number,
+                        "team": self.current_team,
+                        "board": board_state["board"],
+                        "allied_subscribers": ", ".join(allied_subscribers),
+                    },
+                )
+                
+                console.print(f"\n[bold]Umpire Validation (Human)[/bold]")
+                console.print(f"Team: {self.current_team.title()}")
+                console.print(f'Clue: "{clue}" ({number})')
+                console.print(f"[yellow]{'='*80}[/yellow]")
+                console.print("[yellow]UMPIRE PROMPT:[/yellow]")
+                console.print(f"[yellow]{'='*80}[/yellow]")
+                console.print(prompt)
+                console.print(f"[yellow]{'='*80}[/yellow]\n")
+                
+                while True:
+                    decision = console.input("Is this clue valid? (y/n): ").strip().lower()
+                    if decision in ['y', 'yes']:
+                        reasoning = console.input("Reasoning (optional): ").strip() or "Clue approved by human umpire"
+                        is_valid = True
+                        break
+                    elif decision in ['n', 'no']:
+                        reasoning = console.input("Violation reasoning: ").strip() or "Rule violation detected by human umpire"
+                        is_valid = False
+                        break
+                    else:
+                        console.print("[red]Please enter 'y' or 'n'[/red]")
+            else:
+                # AI umpire validation
+                is_valid, reasoning = self.umpire_player.get_umpire_validation(
+                    clue, number, self.current_team, board_state, self.prompt_files["umpire"]
+                )
+                
+                # If first umpire flags as invalid, do second review with Gemini 2.5 Pro
+                if not is_valid and self.umpire_player is not None:
+                    console.print(f"[yellow]🔄 First umpire flagged clue as invalid. Getting second opinion from Gemini 2.5 Pro...[/yellow]")
+                    
+                    # Create a temporary Gemini 2.5 Pro player for second review
+                    review_umpire = AIPlayer("gemini-2.5")
+                    
+                    # Get second opinion with same prompt
+                    review_valid, review_reasoning = review_umpire.get_umpire_validation(
+                        clue, number, self.current_team, board_state, self.prompt_files["umpire"]
+                    )
+                    
+                    # Log the review umpire metadata
+                    review_metadata = review_umpire.get_last_call_metadata()
+                    if review_metadata:
+                        turn_label = format_turn_label(self.turn_count, self.current_team, self.starting_team)
+                        
+                        # Update turn result with review umpire validation outcome
+                        turn_result = review_metadata.get("turn_result", {})
+                        turn_result.update({
+                            "evaluated_clue": clue,
+                            "evaluated_number": number,
+                            "review_umpire": True,
+                            "first_umpire_model": self.umpire_player.model_name,
+                            "first_umpire_decision": "invalid",
+                            "first_umpire_reasoning": reasoning
+                        })
+                        
+                        log_ai_call_metadata(
+                            game_id=self.game_id,
+                            model_name=review_umpire.model_name,
+                            call_type=review_metadata["call_type"],
+                            team=f"review_umpire_{self.current_team}",
+                            turn=turn_label,
+                            input_tokens=review_metadata["input_tokens"],
+                            output_tokens=review_metadata["output_tokens"],
+                            total_tokens=review_metadata["total_tokens"],
+                            latency_ms=review_metadata["latency_ms"],
+                            openrouter_cost=review_metadata.get("openrouter_cost", 0.0),
+                            upstream_cost=review_metadata.get("upstream_cost", 0.0),
+                            turn_result=turn_result,
+                            game_continues=not self.game_over
+                        )
+                    
+                    if review_valid:
+                        # Second umpire says it's valid - override first decision
+                        console.print(f"[green]✅ Review umpire (Gemini 2.5 Pro) APPROVED the clue - overriding first decision[/green]")
+                        console.print(f"[dim]First umpire ({self.umpire_player.model_name}): {reasoning}[/dim]")
+                        console.print(f"[dim]Review umpire: {review_reasoning}[/dim]")
+                        is_valid = True
+                        reasoning = f"Approved on review by Gemini 2.5 Pro: {review_reasoning}"
+                    else:
+                        # Both umpires say invalid - reject the clue
+                        console.print(f"[red]❌ Review umpire (Gemini 2.5 Pro) also REJECTED the clue - final decision: INVALID[/red]")
+                        console.print(f"[dim]First umpire ({self.umpire_player.model_name}): {reasoning}[/dim]")
+                        console.print(f"[dim]Review umpire: {review_reasoning}[/dim]")
+                        reasoning = f"Rejected by both umpires. First: {reasoning}. Review: {review_reasoning}"
             
             # Log AI call metadata for umpire validation
             if isinstance(self.umpire_player, AIPlayer):
@@ -611,7 +863,6 @@ class SwitchboardGame:
                     )
             
             if is_valid:
-                console.print(f"[green]🟢 Umpire: Clue APPROVED[/green]")
                 return clue, number, True, reasoning
             else:
                 console.print(f"[red]🔴 Umpire: Clue REJECTED - {reasoning}[/red]")
@@ -659,6 +910,9 @@ class SwitchboardGame:
         red_remaining, blue_remaining = self.get_remaining_subscribers()
         log_turn_end_status(red_remaining, blue_remaining)
         
+        # Display game status to terminal
+        self.display_game_status()
+        
         self.current_team = "blue" if self.current_team == "red" else "red"
         self.turn_count += 1
 
@@ -675,6 +929,9 @@ class SwitchboardGame:
         log_game_start(self.game_id, red_model, blue_model, self.board, self.identities)
 
         console.print("[bold]🎯 The Switchboard Game Starting![/bold]")
+        
+        # Display the initial board
+        self.display_board_start()
 
         while not self.game_over:
             # Operator phase

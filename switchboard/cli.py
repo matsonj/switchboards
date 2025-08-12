@@ -1,11 +1,13 @@
 """Command-line interface for The Switchboard AI Game Simulator."""
 
 import logging
+import os
 import random
 from pathlib import Path
 from typing import Optional
 
 import typer
+import yaml
 from rich.console import Console
 from rich.table import Table
 
@@ -16,6 +18,78 @@ from switchboard.utils.logging import setup_logging
 
 app = typer.Typer(help="The Switchboard AI Game Simulator")
 console = Console()
+
+
+def _load_model_mappings(mappings_file: Optional[str] = None) -> dict:
+    """Load model mappings from YAML configuration file."""
+    if mappings_file is None:
+        file_path = Path("inputs/model_mappings.yml")
+    else:
+        file_path = Path(mappings_file)
+
+    try:
+        with open(file_path, "r") as f:
+            data = yaml.safe_load(f)
+        return data.get("models", {})
+    except FileNotFoundError:
+        # Fallback to basic mappings
+        return {
+            "gpt4": "openai/gpt-4",
+            "claude": "anthropic/claude-3.5-sonnet",
+            "gemini": "google/gemini-2.5-pro",
+        }
+    except Exception:
+        # Fallback to basic mappings
+        return {
+            "gpt4": "openai/gpt-4",
+            "claude": "anthropic/claude-3.5-sonnet", 
+            "gemini": "google/gemini-2.5-pro",
+        }
+
+
+def _validate_api_keys_and_models(red: Optional[str], blue: Optional[str], umpire: Optional[str], interactive: bool):
+    """Validate that required API keys are present and model names are valid."""
+    # Check API keys
+    missing_keys = []
+    
+    if not os.getenv("OPENROUTER_API_KEY"):
+        missing_keys.append("OPENROUTER_API_KEY")
+    
+    if missing_keys:
+        console.print(f"[red]Error: Missing required environment variable(s): {', '.join(missing_keys)}[/red]")
+        console.print("[yellow]You may need to `source .env` if you are running locally[/yellow]")
+        console.print("[yellow]Or set the environment variable directly:[/yellow]")
+        for key in missing_keys:
+            console.print(f"[yellow]  export {key}='your-key-here'[/yellow]")
+        raise typer.Exit(1)
+    
+    # Check model names
+    model_mappings = _load_model_mappings()
+    available_models = list(model_mappings.keys())
+    invalid_models = []
+    
+    # Check models that will be used
+    models_to_check = []
+    if red:
+        models_to_check.append(("red", red))
+    if blue:
+        models_to_check.append(("blue", blue))
+    if umpire:
+        models_to_check.append(("umpire", umpire))
+    
+    for team, model in models_to_check:
+        if model not in available_models:
+            invalid_models.append((team, model))
+    
+    if invalid_models:
+        console.print(f"[red]Error: Invalid model name(s):[/red]")
+        for team, model in invalid_models:
+            console.print(f"[red]  {team}: '{model}'[/red]")
+        console.print(f"\n[yellow]Available models:[/yellow]")
+        for model in sorted(available_models):
+            console.print(f"[yellow]  {model}[/yellow]")
+        console.print(f"\n[yellow]Use 'uv run switchboard list-models' for detailed model information[/yellow]")
+        raise typer.Exit(1)
 
 
 def _format_board_for_lineman_cli(board_state: dict) -> str:
@@ -50,8 +124,8 @@ def run(
     blue: Optional[str] = typer.Option(None, help="Model for Blue Team"),
     umpire: Optional[str] = typer.Option("gemini-flash", help="Model for Umpire (clue validation)"),
     no_umpire: bool = typer.Option(False, help="Disable umpire validation"),
-    interactive: bool = typer.Option(
-        False, help="Enable interactive mode for human player"
+    interactive: Optional[str] = typer.Option(
+        None, help="Interactive mode: umpire, red-operator, red-lineman, blue-operator, blue-lineman"
     ),
     num_puzzles: int = typer.Option(1, help="Number of games to play"),
     seed: Optional[int] = typer.Option(None, help="Random seed for reproducible games"),
@@ -76,6 +150,9 @@ def run(
 ):
     """Run The Switchboard game simulation."""
 
+    # Validate API keys and model names first
+    _validate_api_keys_and_models(red, blue, umpire, interactive)
+
     # Setup logging
     log_dir = Path(log_path)
     log_dir.mkdir(exist_ok=True)
@@ -88,6 +165,14 @@ def run(
         random.seed(seed)
         logger.info(f"Random seed set to: {seed}")
 
+    # Validate interactive mode options
+    valid_interactive_modes = ["umpire", "red-operator", "red-lineman", "blue-operator", "blue-lineman"]
+    if interactive and interactive not in valid_interactive_modes:
+        console.print(
+            f"[red]Error: Interactive mode must be one of: {', '.join(valid_interactive_modes)}[/red]"
+        )
+        raise typer.Exit(1)
+
     # Validate arguments
     if not interactive and (not red or not blue):
         console.print(
@@ -95,10 +180,11 @@ def run(
         )
         raise typer.Exit(1)
 
-    if interactive and (red and blue):
+    if interactive and interactive != "umpire" and (not red or not blue):
         console.print(
-            "[yellow]Warning: In interactive mode, only one AI team is needed. Using red team model.[/yellow]"
+            "[red]Error: Interactive modes other than 'umpire' require both --red and --blue models[/red]"
         )
+        raise typer.Exit(1)
 
     # Create players
     try:
@@ -106,38 +192,18 @@ def run(
         blue_player: Player
 
         if interactive:
-            human_player = HumanPlayer()
-
-            # If both models specified, use the first for AI team
-            if red and blue:
-                console.print(
-                    "[yellow]In interactive mode, only one AI team is needed. Using red team for AI.[/yellow]"
-                )
-                ai_player = AIPlayer(red)
-                red_player = ai_player
-                blue_player = human_player
-                console.print(
-                    "[green]Interactive mode: Human playing as Blue team[/green]"
-                )
-            elif red:
-                ai_player = AIPlayer(red)
-                red_player = ai_player
-                blue_player = human_player
-                console.print(
-                    "[green]Interactive mode: Human playing as Blue team[/green]"
-                )
-            elif blue:
-                ai_player = AIPlayer(blue)
-                red_player = human_player
-                blue_player = ai_player
-                console.print(
-                    "[green]Interactive mode: Human playing as Red team[/green]"
-                )
+            if interactive == "umpire":
+                # Umpire mode: both teams are AI, human is umpire
+                if not red or not blue:
+                    console.print("[red]Error: Umpire mode requires both --red and --blue models[/red]")
+                    raise typer.Exit(1)
+                red_player = AIPlayer(red)
+                blue_player = AIPlayer(blue)
             else:
-                console.print(
-                    "[red]Error: Interactive mode requires at least one AI model (--red or --blue)[/red]"
-                )
-                raise typer.Exit(1)
+                # Role-specific mode: specific role is human, rest are AI
+                red_player = AIPlayer(red)
+                blue_player = AIPlayer(blue)
+                console.print(f"[green]Interactive mode: Human {interactive}[/green]")
         else:
             if not red or not blue:
                 console.print(
@@ -149,14 +215,14 @@ def run(
 
         # Create umpire player if not disabled
         umpire_player = None
-        if not no_umpire and umpire:
-            try:
-                umpire_player = AIPlayer(umpire)
-                console.print(f"[green]Umpire enabled: {umpire}[/green]")
-            except Exception as e:
-                console.print(f"[yellow]Warning: Could not create umpire player: {e}[/yellow]")
-        elif no_umpire:
-            console.print("[yellow]Umpire validation disabled[/yellow]")
+        if not no_umpire:
+            if interactive == "umpire":
+                umpire_player = HumanPlayer()
+            elif umpire:
+                try:
+                    umpire_player = AIPlayer(umpire)
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not create umpire player: {e}[/yellow]")
 
     except Exception as e:
         console.print(f"[red]Error creating players: {e}[/red]")
@@ -178,6 +244,7 @@ def run(
                 blue_operator_prompt=blue_operator_prompt,
                 blue_lineman_prompt=blue_lineman_prompt,
                 umpire_prompt=umpire_prompt,
+                interactive_mode=interactive,
             )
 
             result = game.play()
@@ -282,8 +349,14 @@ def prompt(
     blue_operator_prompt: str = typer.Option("prompts/blue_operator.md", help="Blue operator prompt file"),
     blue_lineman_prompt: str = typer.Option("prompts/blue_lineman.md", help="Blue lineman prompt file"),
     umpire_prompt: str = typer.Option("prompts/umpire.md", help="Umpire prompt file"),
+    verbose: bool = typer.Option(False, help="Enable verbose logging"),
 ):
     """Test and display the exact prompt sent to AI agents."""
+    
+    # Setup logging (but don't create game logs for prompt testing)
+    import tempfile
+    temp_dir = Path(tempfile.mkdtemp())
+    setup_logging(temp_dir, verbose)
     
     # Validate role
     valid_roles = ["operator", "lineman", "umpire"]
