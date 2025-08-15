@@ -347,6 +347,45 @@ def log_game_result(result: Dict[str, Any]):
     log_game_event("game_result", result)
 
 
+def log_game_setup_metadata(
+    game_id: str,
+    red_model: str,
+    blue_model: str,
+    prompt_files: dict,
+    board: list,
+    identities: dict
+):
+    """Log initial game setup metadata."""
+    metadata_logger = logging.getLogger("switchboard.metadata")
+    
+    # Organize words by identity
+    red_words = [name for name, identity in identities.items() if identity == "red_subscriber"]
+    blue_words = [name for name, identity in identities.items() if identity == "blue_subscriber"]
+    civilian_words = [name for name, identity in identities.items() if identity == "civilian"]
+    mole_words = [name for name, identity in identities.items() if identity == "mole"]
+    
+    setup_metadata = {
+        "timestamp": time.time(),
+        "game_id": game_id,
+        "type": "game_setup",
+        "red_model": red_model,
+        "blue_model": blue_model,
+        "red_operator_prompt": prompt_files.get("red_operator", ""),
+        "red_lineman_prompt": prompt_files.get("red_lineman", ""),
+        "blue_operator_prompt": prompt_files.get("blue_operator", ""),
+        "blue_lineman_prompt": prompt_files.get("blue_lineman", ""),
+        "umpire_prompt": prompt_files.get("umpire", ""),
+        "words": {
+            "red": red_words,
+            "blue": blue_words,
+            "civilians": civilian_words,
+            "mole": mole_words
+        }
+    }
+    
+    metadata_logger.info(json.dumps(setup_metadata))
+
+
 def log_ai_call_metadata(
     game_id: str,
     model_name: str,

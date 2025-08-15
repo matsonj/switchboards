@@ -14,7 +14,7 @@ from switchboard.player import AIPlayer, HumanPlayer
 from switchboard.utils.logging import (
     log_game_start, log_operator_clue, log_lineman_guess, 
     log_game_end, log_box_score, log_turn_end_status, log_umpire_rejection, log_umpire_penalty,
-    log_ai_call_metadata, format_turn_label
+    log_ai_call_metadata, format_turn_label, log_game_setup_metadata
 )
 
 console = Console()
@@ -927,8 +927,24 @@ class SwitchboardGame:
         red_model = self.red_player.model_name if hasattr(self.red_player, 'model_name') else "human"
         blue_model = self.blue_player.model_name if hasattr(self.blue_player, 'model_name') else "human"
         log_game_start(self.game_id, red_model, blue_model, self.board, self.identities)
+        
+        # Log game setup metadata
+        log_game_setup_metadata(self.game_id, red_model, blue_model, self.prompt_files, self.board, self.identities)
 
         console.print("[bold]🎯 The Switchboard Game Starting![/bold]")
+        console.print(f"[red]Red Team:[/red] {red_model}")
+        console.print(f"  • Operator: {self.prompt_files.get('red_operator', 'default')}")
+        console.print(f"  • Lineman: {self.prompt_files.get('red_lineman', 'default')}")
+        console.print(f"[blue]Blue Team:[/blue] {blue_model}")
+        console.print(f"  • Operator: {self.prompt_files.get('blue_operator', 'default')}")
+        console.print(f"  • Lineman: {self.prompt_files.get('blue_lineman', 'default')}")
+        if self.umpire_player:
+            umpire_model = self.umpire_player.model_name if hasattr(self.umpire_player, 'model_name') else "human"
+            console.print(f"[yellow]Umpire:[/yellow] {umpire_model} ({self.prompt_files.get('umpire', 'default')})")
+        else:
+            console.print("[yellow]Umpire:[/yellow] Disabled")
+        console.print(f"[green]Game ID:[/green] {self.game_id}")
+        console.print()
         
         # Display the initial board
         self.display_board_start()
