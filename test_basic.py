@@ -3,8 +3,8 @@
 
 import random
 
-from switchboard.game import SwitchboardGame
-from switchboard.player import HumanPlayer
+from playbook.game import PlaybookGame
+from playbook.player import HumanPlayer
 
 
 # Mock human player for testing
@@ -33,7 +33,7 @@ def test_game_setup():
     blue_player = MockHumanPlayer()
 
     # Create game
-    game = SwitchboardGame(
+    game = PlaybookGame(
         names_file="inputs/names.yaml",
         red_player=red_player,
         blue_player=blue_player,
@@ -42,32 +42,32 @@ def test_game_setup():
     # Test board setup
     game.setup_board()
 
-    print(f"Board size: {len(game.board)}")
-    print(f"Board: {game.board[:10]}...")  # Show first 10 names
+    print(f"Field size: {len(game.field)}")
+    print(f"Field: {game.field[:10]}...")  # Show first 10 names
 
     # Count identities
     red_count = sum(
-        1 for identity in game.identities.values() if identity == "red_subscriber"
+        1 for identity in game.identities.values() if identity == "red_target"
     )
     blue_count = sum(
-        1 for identity in game.identities.values() if identity == "blue_subscriber"
+        1 for identity in game.identities.values() if identity == "blue_target"
     )
     civilian_count = sum(
         1 for identity in game.identities.values() if identity == "civilian"
     )
-    mole_count = sum(1 for identity in game.identities.values() if identity == "mole")
+    illegal_count = sum(1 for identity in game.identities.values() if identity == "illegal_target")
 
-    print(f"Red subscribers: {red_count}")
-    print(f"Blue subscribers: {blue_count}")
-    print(f"Civilians: {civilian_count}")
-    print(f"Moles: {mole_count}")
+    print(f"Red targets: {red_count}")
+    print(f"Blue targets: {blue_count}")
+    print(f"Fake targets: {civilian_count}")
+    print(f"Illegal targets: {illegal_count}")
 
     # Verify counts
-    assert len(game.board) == 25, f"Expected 25 names, got {len(game.board)}"
-    assert red_count == 9, f"Expected 9 red subscribers, got {red_count}"
-    assert blue_count == 8, f"Expected 8 blue subscribers, got {blue_count}"
-    assert civilian_count == 7, f"Expected 7 civilians, got {civilian_count}"
-    assert mole_count == 1, f"Expected 1 mole, got {mole_count}"
+    assert len(game.field) == 25, f"Expected 25 names, got {len(game.field)}"
+    assert red_count == 9, f"Expected 9 red targets, got {red_count}"
+    assert blue_count == 8, f"Expected 8 blue targets, got {blue_count}"
+    assert civilian_count == 7, f"Expected 7 fake targets, got {civilian_count}"
+    assert illegal_count == 1, f"Expected 1 illegal target, got {illegal_count}"
 
     print("✓ Game setup test passed!")
 

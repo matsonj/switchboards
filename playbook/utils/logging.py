@@ -1,4 +1,4 @@
-"""Logging utilities for The Switchboard."""
+"""Logging utilities for The Playbook."""
 
 import json
 import logging
@@ -31,7 +31,7 @@ def setup_logging(log_dir: Path, verbose: bool = False):
 
     # File handler
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    log_file = log_dir / f"switchboard_{timestamp}.log"
+    log_file = log_dir / f"playbook_{timestamp}.log"
     file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(file_formatter)
@@ -65,7 +65,7 @@ def setup_logging(log_dir: Path, verbose: bool = False):
 
 def setup_jsonl_logger(jsonl_file: Path):
     """Setup JSONL logger for structured game data."""
-    jsonl_logger = logging.getLogger("switchboard.jsonl")
+    jsonl_logger = logging.getLogger("playbook.jsonl")
     jsonl_logger.setLevel(logging.INFO)
     jsonl_logger.propagate = False
 
@@ -82,7 +82,7 @@ def setup_jsonl_logger(jsonl_file: Path):
 
 def log_game_event(event_type: str, data: Dict[str, Any]):
     """Log a game event in JSONL format."""
-    jsonl_logger = logging.getLogger("switchboard.jsonl")
+    jsonl_logger = logging.getLogger("playbook.jsonl")
 
     event = {"timestamp": time.time(), "event_type": event_type, "data": data}
 
@@ -110,7 +110,7 @@ def log_ai_exchange(
 
 def setup_play_by_play_logger(play_by_play_file: Path):
     """Setup play-by-play logger for clean game events."""
-    pbp_logger = logging.getLogger("switchboard.play_by_play")
+    pbp_logger = logging.getLogger("playbook.play_by_play")
     pbp_logger.setLevel(logging.INFO)
     pbp_logger.propagate = False
 
@@ -127,7 +127,7 @@ def setup_play_by_play_logger(play_by_play_file: Path):
 
 def setup_box_score_logger(box_score_file: Path):
     """Setup box score logger for team performance summaries."""
-    box_logger = logging.getLogger("switchboard.box_score")
+    box_logger = logging.getLogger("playbook.box_score")
     box_logger.setLevel(logging.INFO)
     box_logger.propagate = False
 
@@ -144,7 +144,7 @@ def setup_box_score_logger(box_score_file: Path):
 
 def setup_metadata_logger(metadata_file: Path):
     """Setup metadata logger for detailed game metrics."""
-    metadata_logger = logging.getLogger("switchboard.metadata")
+    metadata_logger = logging.getLogger("playbook.metadata")
     metadata_logger.setLevel(logging.INFO)
     metadata_logger.propagate = False
 
@@ -159,34 +159,34 @@ def setup_metadata_logger(metadata_file: Path):
     metadata_logger.addHandler(metadata_handler)
 
 
-def log_game_start(game_id: str, red_model: str, blue_model: str, board: list, identities: dict):
+def log_game_start(game_id: str, red_model: str, blue_model: str, field: list, identities: dict):
     """Log game start with initial state."""
-    pbp_logger = logging.getLogger("switchboard.play_by_play")
+    pbp_logger = logging.getLogger("playbook.play_by_play")
     
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     
     # Count identities
-    red_subs = [name for name, identity in identities.items() if identity == "red_subscriber"]
-    blue_subs = [name for name, identity in identities.items() if identity == "blue_subscriber"]
-    civilians = [name for name, identity in identities.items() if identity == "civilian"]
-    mole = [name for name, identity in identities.items() if identity == "mole"][0]
+    red_targets = [name for name, identity in identities.items() if identity == "red_target"]
+    blue_targets = [name for name, identity in identities.items() if identity == "blue_target"]
+    fake_targets = [name for name, identity in identities.items() if identity == "fake_target"]
+    illegal_target = [name for name, identity in identities.items() if identity == "illegal_target"][0]
     
     pbp_logger.info(f"=== GAME START [{timestamp}] ===")
     pbp_logger.info(f"Game ID: {game_id}")
-    pbp_logger.info(f"Red Team: {red_model} ({len(red_subs)} subscribers)")
-    pbp_logger.info(f"Blue Team: {blue_model} ({len(blue_subs)} subscribers)")
-    starting_team = "RED" if len(red_subs) == 9 else "BLUE"
+    pbp_logger.info(f"Red Team: {red_model} ({len(red_targets)} targets)")
+    pbp_logger.info(f"Blue Team: {blue_model} ({len(blue_targets)} targets)")
+    starting_team = "RED" if len(red_targets) == 9 else "BLUE"
     pbp_logger.info(f"Starting Team: {starting_team}")
     pbp_logger.info("")
-    pbp_logger.info("BOARD:")
+    pbp_logger.info("FIELD:")
     for i in range(0, 25, 5):
-        row = " | ".join(f"{name:>12}" for name in board[i:i+5])
+        row = " | ".join(f"{name:>12}" for name in field[i:i+5])
         pbp_logger.info(f"  {row}")
     pbp_logger.info("")
-    pbp_logger.info(f"RED SUBSCRIBERS ({len(red_subs)}): {', '.join(red_subs)}")
-    pbp_logger.info(f"BLUE SUBSCRIBERS ({len(blue_subs)}): {', '.join(blue_subs)}")
-    pbp_logger.info(f"CIVILIANS ({len(civilians)}): {', '.join(civilians)}")
-    pbp_logger.info(f"THE MOLE: {mole}")
+    pbp_logger.info(f"RED TARGETS ({len(red_targets)}): {', '.join(red_targets)}")
+    pbp_logger.info(f"BLUE TARGETS ({len(blue_targets)}): {', '.join(blue_targets)}")
+    pbp_logger.info(f"FAKE TARGETS ({len(fake_targets)}): {', '.join(fake_targets)}")
+    pbp_logger.info(f"THE ILLEGAL TARGET: {illegal_target}")
     pbp_logger.info("=" * 50)
     pbp_logger.info("")
 
@@ -206,48 +206,48 @@ def format_turn_label(turn_count: int, team: str, starting_team: str) -> str:
     return f"{turn_number}{turn_phase}"
 
 
-def log_operator_clue(team: str, model: str, clue: str, number: int|str, turn_count: int, starting_team: str):
-    """Log operator clue."""
-    pbp_logger = logging.getLogger("switchboard.play_by_play")
+def log_coach_play(team: str, model: str, play: str, number: int|str, turn_count: int, starting_team: str):
+    """Log coach play."""
+    pbp_logger = logging.getLogger("playbook.play_by_play")
     turn_label = format_turn_label(turn_count, team, starting_team)
-    pbp_logger.info(f"Turn {turn_label} - {team.upper()} OPERATOR ({model}): \"{clue}\" ({number})")
+    pbp_logger.info(f"Turn {turn_label} - {team.upper()} COACH ({model}): \"{play}\" ({number})")
 
 
-def log_lineman_guess(team: str, model: str, guess: str, result: str, turn_count: int, starting_team: str):
-    """Log lineman guess and result."""
-    pbp_logger = logging.getLogger("switchboard.play_by_play")
+def log_player_shot(team: str, model: str, shot: str, result: str, turn_count: int, starting_team: str):
+    """Log player shot and result."""
+    pbp_logger = logging.getLogger("playbook.play_by_play")
     
     # Format result for display
-    if result == "correct":
+    if result == "goal":
         icon = "✓"
-        result_text = "CORRECT - Allied Subscriber"
-    elif result == "civilian":
+        result_text = "GOAL - Your Target"
+    elif result == "miss":
         icon = "○"
-        result_text = "CIVILIAN"
-    elif result == "enemy":
+        result_text = "MISS - Fake Target"
+    elif result == "own_goal":
         icon = "✗"
-        result_text = "ENEMY SUBSCRIBER"
-    elif result == "mole":
+        result_text = "OWN GOAL - Opposing Target"
+    elif result == "ejection":
         icon = "💀"
-        result_text = "THE MOLE - GAME OVER!"
+        result_text = "THE ILLEGAL TARGET - EJECTION!"
     else:
         icon = "?"
         result_text = result
     
     turn_label = format_turn_label(turn_count, team, starting_team)
-    pbp_logger.info(f"Turn {turn_label} - {team.upper()} LINEMAN ({model}): {guess} → {icon} {result_text}")
+    pbp_logger.info(f"Turn {turn_label} - {team.upper()} PLAYER ({model}): {shot} → {icon} {result_text}")
 
 
 def log_turn_end_status(red_remaining: int, blue_remaining: int):
-    """Log remaining subscribers after turn ends."""
-    pbp_logger = logging.getLogger("switchboard.play_by_play")
+    """Log remaining targets after turn ends."""
+    pbp_logger = logging.getLogger("playbook.play_by_play")
     pbp_logger.info(f"Status: Red {red_remaining} remaining, Blue {blue_remaining} remaining")
     pbp_logger.info("")
 
 
 def log_game_end(winner: str, turns: int, duration: float):
     """Log game end."""
-    pbp_logger = logging.getLogger("switchboard.play_by_play")
+    pbp_logger = logging.getLogger("playbook.play_by_play")
     
     pbp_logger.info("")
     pbp_logger.info("=" * 50)
@@ -261,27 +261,27 @@ def log_game_end(winner: str, turns: int, duration: float):
     pbp_logger.info("")
 
 
-def log_umpire_rejection(team: str, clue: str, number: int|str, reasoning: str):
-    """Log umpire clue rejection."""
-    pbp_logger = logging.getLogger("switchboard.play_by_play")
-    if reasoning in ["Rule violation detected", "Clue approved"]:
-        pbp_logger.info(f"🔴 UMPIRE REJECTION: {team.upper()} team clue '{clue}' ({number}) - {reasoning} (check detailed logs for specifics)")
+def log_referee_rejection(team: str, play: str, number: int|str, reasoning: str):
+    """Log referee play rejection."""
+    pbp_logger = logging.getLogger("playbook.play_by_play")
+    if reasoning in ["Rule violation detected", "Play approved"]:
+        pbp_logger.info(f"🔴 REFEREE REJECTION: {team.upper()} team play '{play}' ({number}) - {reasoning} (check detailed logs for specifics)")
     else:
-        pbp_logger.info(f"🔴 UMPIRE REJECTION: {team.upper()} team clue '{clue}' ({number}) - {reasoning}")
-    pbp_logger.info(f"Turn ended due to invalid clue")
+        pbp_logger.info(f"🔴 REFEREE REJECTION: {team.upper()} team play '{play}' ({number}) - {reasoning}")
+    pbp_logger.info(f"Turn ended due to invalid play")
     pbp_logger.info("")
 
 
-def log_umpire_penalty(violating_team: str, penalized_team: str, revealed_word: str):
-    """Log umpire penalty for invalid clue."""
-    pbp_logger = logging.getLogger("switchboard.play_by_play")
-    pbp_logger.info(f"⚖️  PENALTY: {revealed_word} revealed for {penalized_team.upper()} team due to {violating_team.upper()} team's invalid clue")
+def log_referee_penalty(violating_team: str, penalized_team: str, revealed_word: str):
+    """Log referee penalty for invalid play."""
+    pbp_logger = logging.getLogger("playbook.play_by_play")
+    pbp_logger.info(f"⚖️  PENALTY: {revealed_word} revealed for {penalized_team.upper()} team due to {violating_team.upper()} team's invalid play")
     pbp_logger.info("")
 
 
 def log_box_score(game_id: str, red_model: str, blue_model: str, result: dict):
     """Log team performance summary as JSONL."""
-    box_logger = logging.getLogger("switchboard.box_score")
+    box_logger = logging.getLogger("playbook.box_score")
     
     # Calculate team stats
     red_moves = [move for move in result['moves'] if move['team'] == 'red']
@@ -356,13 +356,13 @@ def log_game_setup_metadata(
     identities: dict
 ):
     """Log initial game setup metadata."""
-    metadata_logger = logging.getLogger("switchboard.metadata")
+    metadata_logger = logging.getLogger("playbook.metadata")
     
     # Organize words by identity
-    red_words = [name for name, identity in identities.items() if identity == "red_subscriber"]
-    blue_words = [name for name, identity in identities.items() if identity == "blue_subscriber"]
+    red_words = [name for name, identity in identities.items() if identity == "red_target"]
+    blue_words = [name for name, identity in identities.items() if identity == "blue_target"]
     civilian_words = [name for name, identity in identities.items() if identity == "civilian"]
-    mole_words = [name for name, identity in identities.items() if identity == "mole"]
+    illegal_target_words = [name for name, identity in identities.items() if identity == "illegal_target"]
     
     setup_metadata = {
         "timestamp": time.time(),
@@ -370,16 +370,16 @@ def log_game_setup_metadata(
         "type": "game_setup",
         "red_model": red_model,
         "blue_model": blue_model,
-        "red_operator_prompt": prompt_files.get("red_operator", ""),
-        "red_lineman_prompt": prompt_files.get("red_lineman", ""),
-        "blue_operator_prompt": prompt_files.get("blue_operator", ""),
-        "blue_lineman_prompt": prompt_files.get("blue_lineman", ""),
-        "umpire_prompt": prompt_files.get("umpire", ""),
+        "red_coach_prompt": prompt_files.get("red_coach", ""),
+        "red_player_prompt": prompt_files.get("red_player", ""),
+        "blue_coach_prompt": prompt_files.get("blue_coach", ""),
+        "blue_player_prompt": prompt_files.get("blue_player", ""),
+        "referee_prompt": prompt_files.get("referee", ""),
         "words": {
             "red": red_words,
             "blue": blue_words,
             "civilians": civilian_words,
-            "mole": mole_words
+            "illegal_target": illegal_target_words
         }
     }
     
@@ -389,7 +389,7 @@ def log_game_setup_metadata(
 def log_ai_call_metadata(
     game_id: str,
     model_name: str,
-    call_type: str,  # operator/lineman/umpire
+    call_type: str,  # coach/player/referee
     team: str,
     turn: str,  # 1a, 1b, 2a, etc.
     input_tokens: int,
@@ -402,7 +402,7 @@ def log_ai_call_metadata(
     game_continues: bool = True
 ):
     """Log detailed AI call metadata for analysis."""
-    metadata_logger = logging.getLogger("switchboard.metadata")
+    metadata_logger = logging.getLogger("playbook.metadata")
     
     metadata = {
         "timestamp": time.time(),

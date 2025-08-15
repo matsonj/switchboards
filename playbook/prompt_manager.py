@@ -136,35 +136,35 @@ class PromptManager:
         """Generate a default prompt if template file is not available."""
         role = self._infer_role(context)
 
-        if "operator" in role:
-            return self._get_default_operator_prompt(context)
+        if "coach" in role:
+            return self._get_default_coach_prompt(context)
         else:
-            return self._get_default_lineman_prompt(context)
+            return self._get_default_player_prompt(context)
 
     def _infer_role(self, context: Dict[str, Any]) -> str:
         """Infer the role from context."""
         if "identities" in context and context.get("identities"):
-            return "operator"
-        elif "clue" in context:
-            return "lineman"
+            return "coach"
+        elif "play" in context:
+            return "player"
         else:
-            return "operator"  # Default
+            return "coach"  # Default
 
-    def _get_default_operator_prompt(self, context: Dict[str, Any]) -> str:
-        """Default operator prompt."""
+    def _get_default_coach_prompt(self, context: Dict[str, Any]) -> str:
+        """Default coach prompt."""
         team = context.get("team", "red")
         board = context.get("board", [])
         identities = context.get("identities", {})
 
-        prompt = f"""# The Switchboard - {team.title()} Team Operator
+        prompt = f"""# The Playbook - {team.title()} Team Coach
 
-You are the Operator for the {team.title()} team in The Switchboard, a game of clandestine communication.
+You are the Coach for the {team.title()} team in The Playbook, a game of strategic deduction.
 
 ## Your Mission
-Guide your Linemen to identify all Allied Subscribers while avoiding:
-- Innocent Civilians (waste a guess)
-- Enemy Subscribers (help the other team)
-- The Mole (instant loss!)
+Guide your Players to identify all Allied Targets while avoiding:
+- Innocent Civilians (waste a shot)
+- Enemy Targets (help the other team)
+- The Illegal Target (instant loss!)
 
 ## Current Board
 {self._format_board(board)}
@@ -173,38 +173,38 @@ Guide your Linemen to identify all Allied Subscribers while avoiding:
 {self._format_identities(identities)}
 
 ## Your Task
-Provide a cryptic clue and number that will help your Linemen identify YOUR Allied Subscribers.
+Provide a cryptic play and number that will help your Players identify YOUR Allied Targets.
 
 Format your response as:
-CLUE: [your cryptic clue]
-NUMBER: [number of related subscribers]
+PLAY: [your cryptic play]
+NUMBER: [number of related targets]
 
 Be clever but not too obvious - the enemy might be listening!
 """
         return prompt
 
-    def _get_default_lineman_prompt(self, context: Dict[str, Any]) -> str:
-        """Default lineman prompt."""
+    def _get_default_player_prompt(self, context: Dict[str, Any]) -> str:
+        """Default player prompt."""
         team = context.get("team", "red")
         board = context.get("board", [])
-        clue = context.get("clue", "")
+        play = context.get("play", "")
         number = context.get("number", 1)
         revealed = context.get("revealed", {})
 
         available_names = [name for name in board if not revealed.get(name, False)]
 
-        prompt = f"""# The Switchboard - {team.title()} Team Lineman
+        prompt = f"""# The Playbook - {team.title()} Team Player
 
-You are a Lineman for the {team.title()} team in The Switchboard.
+You are a Player for the {team.title()} team in The Playbook.
 
 ## Your Mission
-Your Operator has given you a cryptic clue. Use it to identify Allied Subscribers.
+Your Coach has given you a cryptic play. Use it to identify Allied Targets.
 
 ## Current Board (Available Names)
 {', '.join(available_names)}
 
-## Operator's Message
-Clue: "{clue}"
+## Coach's Message
+Play: "{play}"
 Number: {number}
 
 ## Rules

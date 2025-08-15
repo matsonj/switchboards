@@ -26,7 +26,7 @@ class OpenRouterAdapter:
             api_key=self.api_key,
             default_headers={
                 "HTTP-Referer": "https://github.com/matsonj/eval-connections",
-                "X-Title": "Switchboard Game Simulator"
+                "X-Title": "Playbook Game Simulator"
             }
         )
 

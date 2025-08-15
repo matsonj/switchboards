@@ -3,8 +3,8 @@
 
 import random
 
-from switchboard.game import SwitchboardGame
-from switchboard.player import HumanPlayer
+from playbook.game import PlaybookGame
+from playbook.player import HumanPlayer
 
 
 # Create a simple demo that doesn't require API keys

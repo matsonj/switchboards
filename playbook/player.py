@@ -1,4 +1,4 @@
-"""Player classes for The Switchboard game."""
+"""Player classes for The Playbook game."""
 
 import logging
 import os
@@ -6,9 +6,9 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Dict, List, Tuple
 
-from switchboard.adapters.openrouter_adapter import OpenRouterAdapter
-from switchboard.prompt_manager import PromptManager
-from switchboard.utils.logging import log_ai_call_metadata, format_turn_label
+from playbook.adapters.openrouter_adapter import OpenRouterAdapter
+from playbook.prompt_manager import PromptManager
+from playbook.utils.logging import log_ai_call_metadata, format_turn_label
 
 logger = logging.getLogger(__name__)
 
@@ -17,30 +17,30 @@ class Player(ABC):
     """Abstract base class for all players."""
 
     @abstractmethod
-    def get_operator_move(self, board_state: Dict, prompt_file: str) -> Tuple[str, int|str]:
-        """Get clue and number from operator."""
+    def get_coach_move(self, board_state: Dict, prompt_file: str) -> Tuple[str, int|str]:
+        """Get play and number from coach."""
         pass
 
     @abstractmethod
-    def get_lineman_moves(
-        self, board_state: Dict, clue: str, number: int|str, prompt_file: str
+    def get_player_moves(
+        self, board_state: Dict, play: str, number: int|str, prompt_file: str
     ) -> List[str]:
-        """Get guesses from lineman."""
+        """Get shots from player."""
         pass
 
 
 class HumanPlayer(Player):
     """Human player implementation."""
 
-    def get_operator_move(self, board_state: Dict, prompt_file: str) -> Tuple[str, int|str]:
-        """Human operator input is handled in the game loop."""
-        raise NotImplementedError("Human operator input handled in game loop")
+    def get_coach_move(self, board_state: Dict, prompt_file: str) -> Tuple[str, int|str]:
+        """Human coach input is handled in the game loop."""
+        raise NotImplementedError("Human coach input handled in game loop")
 
-    def get_lineman_moves(
-        self, board_state: Dict, clue: str, number: int|str, prompt_file: str
+    def get_player_moves(
+        self, board_state: Dict, play: str, number: int|str, prompt_file: str
     ) -> List[str]:
-        """Human lineman input is handled in the game loop."""
-        raise NotImplementedError("Human lineman input handled in game loop")
+        """Human player input is handled in the game loop."""
+        raise NotImplementedError("Human player input handled in game loop")
 
 
 class AIPlayer(Player):
@@ -65,93 +65,93 @@ class AIPlayer(Player):
         """Get metadata from the last AI call."""
         return self._last_call_metadata
 
-    def get_operator_move(self, board_state: Dict, prompt_file: str) -> Tuple[str, int|str]:
-        """Get clue and number from AI operator."""
+    def get_coach_move(self, board_state: Dict, prompt_file: str) -> Tuple[str, int|str]:
+        """Get play and number from AI coach."""
         try:
-            # Calculate remaining subscribers
+            # Calculate remaining targets
             red_remaining = sum(
                 1 for name, identity in board_state["identities"].items()
-                if identity == "red_subscriber" and not board_state["revealed"].get(name, False)
+                if identity == "red_target" and not board_state["revealed"].get(name, False)
             )
             blue_remaining = sum(
                 1 for name, identity in board_state["identities"].items()
-                if identity == "blue_subscriber" and not board_state["revealed"].get(name, False)
+                if identity == "blue_target" and not board_state["revealed"].get(name, False)
             )
             revealed_names = [name for name, revealed in board_state["revealed"].items() if revealed]
             
             # Categorize identities for cleaner prompt formatting
-            red_subscribers = [name for name, identity in board_state["identities"].items() 
-                             if identity == "red_subscriber"]
-            blue_subscribers = [name for name, identity in board_state["identities"].items() 
-                              if identity == "blue_subscriber"]
-            civilians = [name for name, identity in board_state["identities"].items() 
-                        if identity == "civilian"]
-            mole = [name for name, identity in board_state["identities"].items() 
-                   if identity == "mole"]
+            red_targets = [name for name, identity in board_state["identities"].items() 
+                             if identity == "red_target"]
+            blue_targets = [name for name, identity in board_state["identities"].items() 
+                              if identity == "blue_target"]
+            fake_targets = [name for name, identity in board_state["identities"].items() 
+                        if identity == "fake_target"]
+            illegal_target = [name for name, identity in board_state["identities"].items() 
+                   if identity == "illegal_target"]
             
             # Load and format prompt
             prompt = self.prompt_manager.load_prompt(
                 prompt_file,
                 {
-                    "board": board_state["board"],
+                    "field": board_state["board"],
                     "revealed": board_state["revealed"],
                     "team": board_state["current_team"],
                     "red_remaining": red_remaining,
                     "blue_remaining": blue_remaining,
                     "revealed_names": ", ".join(revealed_names) if revealed_names else "None",
-                    "red_subscribers": ", ".join(red_subscribers),
-                    "blue_subscribers": ", ".join(blue_subscribers),
-                    "civilians": ", ".join(civilians),
-                    "mole": ", ".join(mole),
+                    "red_targets": ", ".join(red_targets),
+                    "blue_targets": ", ".join(blue_targets),
+                    "fake_targets": ", ".join(fake_targets),
+                    "illegal_target": ", ".join(illegal_target),
                 },
             )
 
             # Call AI model with metadata tracking
             response, metadata = self.adapter.call_model_with_metadata(self.model_name, prompt)
 
-            # Parse response for clue and number
+            # Parse response for play and number
             logger.debug(f"Raw AI response: {response}")
-            clue, number = self._parse_operator_response(response)
+            play, number = self._parse_coach_response(response)
             
             # Log AI call metadata (we'll need game context passed from caller)
             # For now, store metadata for potential logging at game level
             self._last_call_metadata = metadata
-            self._last_call_metadata["call_type"] = "operator"
+            self._last_call_metadata["call_type"] = "coach"
             self._last_call_metadata["turn_result"] = {
-                "clue": clue,
-                "clue_number": number if isinstance(number, (int, str)) else str(number)
+                "play": play,
+                "play_number": number if isinstance(number, (int, str)) else str(number)
             }
 
             logger.info(
-                f"AI Operator ({self.model_name}) gave clue: '{clue}' ({number})"
+                f"AI Coach ({self.model_name}) gave play: '{play}' ({number})"
             )
-            return clue, number
+            return play, number
 
         except Exception as e:
-            logger.error(f"Error in AI operator move: {e}")
+            logger.error(f"Error in AI coach move: {e}")
             # Fallback
             return "ERROR", 1
 
-    def get_umpire_validation(
-        self, clue: str, number: int|str, team: str, board_state: Dict, prompt_file: str
+    def get_referee_validation(
+        self, play: str, number: int|str, team: str, board_state: Dict, prompt_file: str
     ) -> Tuple[bool, str]:
-        """Get umpire validation of a clue. Returns (is_valid, reasoning)."""
+        """Get referee validation of a play. Returns (is_valid, reasoning)."""
         try:
-            # Get team's allied subscribers
-            allied_subscribers = [
+            # Get team's allied targets
+            allied_targets = [
                 name for name, identity in board_state["identities"].items()
-                if identity == f"{team}_subscriber"
+                if identity == f"{team}_target"
             ]
             
             # Load and format prompt
             prompt = self.prompt_manager.load_prompt(
                 prompt_file,
                 {
-                    "clue": clue,
+                    "play": play,
                     "number": number,
                     "team": team,
-                    "board": board_state["board"],
-                    "allied_subscribers": ", ".join(allied_subscribers),
+                    "field": board_state["board"],
+                    "allied_targets": ", ".join(allied_targets),
                 },
             )
 
@@ -159,79 +159,79 @@ class AIPlayer(Player):
             response, metadata = self.adapter.call_model_with_metadata(self.model_name, prompt)
 
             # Parse response for validation
-            is_valid, reasoning = self._parse_umpire_response(response)
+            is_valid, reasoning = self._parse_referee_response(response)
             
             # Store metadata for logging at game level
             self._last_call_metadata = metadata
-            self._last_call_metadata["call_type"] = "umpire"
+            self._last_call_metadata["call_type"] = "referee"
             self._last_call_metadata["turn_result"] = {
-                "umpire_result": "valid" if is_valid else "invalid",
-                "umpire_reasoning": reasoning
+                "referee_result": "valid" if is_valid else "invalid",
+                "referee_reasoning": reasoning
             }
 
             # Log with full context for debugging if reasoning is generic
-            if not is_valid and reasoning in ["Rule violation detected", "Clue approved"]:
+            if not is_valid and reasoning in ["Rule violation detected", "Play approved"]:
                 logger.info(
-                    f"AI Umpire ({self.model_name}) validation: {'VALID' if is_valid else 'INVALID'} - {reasoning} | Full response: {response[:200]}..."
+                    f"AI Referee ({self.model_name}) validation: {'VALID' if is_valid else 'INVALID'} - {reasoning} | Full response: {response[:200]}..."
                 )
             else:
                 logger.info(
-                    f"AI Umpire ({self.model_name}) validation: {'VALID' if is_valid else 'INVALID'} - {reasoning}"
+                    f"AI Referee ({self.model_name}) validation: {'VALID' if is_valid else 'INVALID'} - {reasoning}"
                 )
             
-            # If invalid, write full prompt+response to logs/umpire/
+            # If invalid, write full prompt+response to logs/referee/
             if not is_valid:
-                self._log_umpire_violation(clue, number, team, prompt, response, reasoning)
+                self._log_referee_foul(play, number, team, prompt, response, reasoning)
             
             return is_valid, reasoning
 
         except Exception as e:
-            logger.error(f"Error in AI umpire validation: {e}")
-            # Fallback: allow clue but log the error
-            return True, f"Umpire error - allowing clue: {e}"
+            logger.error(f"Error in AI referee validation: {e}")
+            # Fallback: allow play but log the error
+            return True, f"Referee error - allowing play: {e}"
 
-    def _log_umpire_violation(self, clue: str, number: int|str, team: str, prompt: str, response: str, reasoning: str):
-        """Log umpire violation details to logs/umpire/ directory."""
+    def _log_referee_foul(self, play: str, number: int|str, team: str, prompt: str, response: str, reasoning: str):
+        """Log referee foul details to logs/referee/ directory."""
         try:
-            # Create logs/umpire directory if it doesn't exist
-            umpire_log_dir = "logs/umpire"
-            os.makedirs(umpire_log_dir, exist_ok=True)
+            # Create logs/referee directory if it doesn't exist
+            referee_log_dir = "logs/referee"
+            os.makedirs(referee_log_dir, exist_ok=True)
             
-            # Generate filename with timestamp (single file for all violations)
+            # Generate filename with timestamp (single file for all fouls)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"violations_{timestamp}.log"
-            filepath = os.path.join(umpire_log_dir, filename)
+            filename = f"fouls_{timestamp}.log"
+            filepath = os.path.join(referee_log_dir, filename)
             
-            # Append violation details (create file if it doesn't exist)
+            # Append foul details (create file if it doesn't exist)
             with open(filepath, 'a') as f:
                 f.write(f"=== {team.upper()} TEAM ===\n")
-                f.write(f"=== UMPIRE RULE VIOLATION ===\n")
+                f.write(f"=== REFEREE FOUL ===\n")
                 f.write(f"Timestamp: {datetime.now().isoformat()}\n")
                 f.write(f"Team: {team}\n")
-                f.write(f"Clue: {clue}\n")
+                f.write(f"Play: {play}\n")
                 f.write(f"Number: {number}\n")
-                f.write(f"Violation Reason: {reasoning}\n")
-                if reasoning in ["Rule violation detected", "Clue approved"]:
+                f.write(f"Foul Reason: {reasoning}\n")
+                if reasoning in ["Rule violation detected", "Play approved"]:
                     f.write(f"NOTE: Generic reasoning detected - check full response below\n")
-                f.write(f"Umpire Model: {self.model_name}\n\n")
+                f.write(f"Referee Model: {self.model_name}\n\n")
                 f.write(f"=== FULL PROMPT ===\n")
                 f.write(f"{prompt}\n\n")
-                f.write(f"=== UMPIRE RESPONSE ===\n")
+                f.write(f"=== REFEREE RESPONSE ===\n")
                 f.write(f"{response}\n\n")
                 f.write("="*80 + "\n\n")
                 
-            logger.info(f"Umpire violation logged to {filepath}")
+            logger.info(f"Referee foul logged to {filepath}")
             
         except Exception as e:
-            logger.error(f"Failed to log umpire violation: {e}")
+            logger.error(f"Failed to log referee foul: {e}")
 
-    def get_lineman_moves(
-        self, board_state: Dict, clue: str, number: int|str, prompt_file: str
+    def get_player_moves(
+        self, board_state: Dict, play: str, number: int|str, prompt_file: str
     ) -> List[str]:
-        """Get guesses from AI lineman."""
+        """Get shots from AI player."""
         try:
             # Load and format prompt
-            # Filter board to only show available (unrevealed) names
+            # Filter field to only show available (unrevealed) names
             available_names = [
                 name for name in board_state["board"] 
                 if not board_state["revealed"].get(name, False)
@@ -243,10 +243,10 @@ class AIPlayer(Player):
             prompt = self.prompt_manager.load_prompt(
                 prompt_file,
                 {
-                    "board": self._format_board_for_lineman(board_state),
+                    "field": self._format_field_for_player(board_state),
                     "available_names": available_names_formatted,
-                    "clue_history": board_state.get("clue_history", "None (game just started)"),
-                    "clue": clue,
+                    "play_history": board_state.get("play_history", "None (game just started)"),
+                    "play": play,
                     "number": number,
                     "team": board_state["current_team"],
                 },
@@ -255,22 +255,22 @@ class AIPlayer(Player):
             # Call AI model with metadata tracking
             response, metadata = self.adapter.call_model_with_metadata(self.model_name, prompt)
 
-            # Parse response for guesses
-            guesses = self._parse_lineman_response(response, board_state, number)
+            # Parse response for shots
+            shots = self._parse_player_response(response, board_state, number)
             
             # Store metadata for logging at game level
             self._last_call_metadata = metadata
-            self._last_call_metadata["call_type"] = "lineman"
+            self._last_call_metadata["call_type"] = "player"
             self._last_call_metadata["turn_result"] = {
-                "total_guesses": len(guesses),
-                "guesses": guesses
+                "total_shots": len(shots),
+                "shots": shots
             }
 
-            logger.info(f"AI Lineman ({self.model_name}) guesses: {guesses}")
-            return guesses
+            logger.info(f"AI Player ({self.model_name}) shots: {shots}")
+            return shots
 
         except Exception as e:
-            logger.error(f"Error in AI lineman move: {e}")
+            logger.error(f"Error in AI player move: {e}")
             # Fallback
             available = [
                 name
@@ -279,18 +279,18 @@ class AIPlayer(Player):
             ]
             return available[:1] if available else []
 
-    def _parse_operator_response(self, response: str) -> Tuple[str, int|str]:
-        """Parse AI response for operator clue and number."""
+    def _parse_coach_response(self, response: str) -> Tuple[str, int|str]:
+        """Parse AI response for coach play and number."""
         lines = response.strip().split("\n")
 
-        # Look for clue and number patterns
-        clue = "UNKNOWN"
+        # Look for play and number patterns
+        play = "UNKNOWN"
         number: int|str = 1
 
         for line in lines:
             line = line.strip()
-            if line.startswith("CLUE:"):
-                clue = line.replace("CLUE:", "").strip().strip("\"'")
+            if line.startswith("PLAY:"):
+                play = line.replace("PLAY:", "").strip().strip("\"'")
             elif line.startswith("NUMBER:"):
                 number_str = line.replace("NUMBER:", "").strip().lower()
                 if number_str == "unlimited":
@@ -301,28 +301,28 @@ class AIPlayer(Player):
                     except ValueError:
                         number = 1
             elif ":" in line and len(line.split(":")) == 2:
-                # Try to parse "clue: number" format
+                # Try to parse "play: number" format
                 parts = line.split(":")
                 number_str = parts[1].strip().lower()
                 if number_str == "unlimited":
-                    clue = parts[0].strip().strip("\"'")
+                    play = parts[0].strip().strip("\"'")
                     number = "unlimited"
                 elif number_str.isdigit():
-                    clue = parts[0].strip().strip("\"'")
+                    play = parts[0].strip().strip("\"'")
                     number = int(number_str)
 
         # Ensure valid number (allow 0 and unlimited)
         if isinstance(number, int) and number < 0:
             number = 1
 
-        return clue, number
+        return play, number
 
-    def _parse_umpire_response(self, response: str) -> Tuple[bool, str]:
-        """Parse AI response for umpire validation."""
+    def _parse_referee_response(self, response: str) -> Tuple[bool, str]:
+        """Parse AI response for referee validation."""
         lines = response.strip().split("\n")
         
-        is_valid = True  # Default to valid (allow clue unless clearly invalid)
-        reasoning = "Clue approved"
+        is_valid = True  # Default to valid (allow play unless clearly invalid)
+        reasoning = "Play approved"
         
         # First pass: look for VALID/INVALID
         found_verdict = False
@@ -335,7 +335,7 @@ class AIPlayer(Player):
                 if ":" in line:
                     reasoning = line.split(":", 1)[1].strip()
                 else:
-                    reasoning = "Clue follows game rules"
+                    reasoning = "Play follows game rules"
                 break
             elif line.startswith("INVALID"):
                 is_valid = False
@@ -344,12 +344,12 @@ class AIPlayer(Player):
                 if ":" in line:
                     reasoning = line.split(":", 1)[1].strip()
                 else:
-                    # Look for "Violation:" on subsequent lines
+                    # Look for "Foul:" on subsequent lines
                     reasoning = "Rule violation detected"
                     for next_line in lines[i+1:]:
                         next_line = next_line.strip()
-                        if next_line.startswith("Violation:"):
-                            reasoning = next_line.replace("Violation:", "").strip()
+                        if next_line.startswith("Foul:"):
+                            reasoning = next_line.replace("Foul:", "").strip()
                             break
                         elif next_line.startswith("Reasoning:"):
                             reasoning = next_line.replace("Reasoning:", "").strip()
@@ -360,31 +360,31 @@ class AIPlayer(Player):
                             break
                 break
         
-        # Second pass: look for standalone violation lines if no verdict found
+        # Second pass: look for standalone foul lines if no verdict found
         if not found_verdict:
             for line in lines:
                 line = line.strip()
-                if line.startswith("Violation:"):
+                if line.startswith("Foul:"):
                     is_valid = False
-                    reasoning = line.replace("Violation:", "").strip()
+                    reasoning = line.replace("Foul:", "").strip()
                     break
                 elif line.startswith("Reasoning:"):
                     reasoning = line.replace("Reasoning:", "").strip()
         
-        # If no clear reasoning found and clue is invalid, try to extract from full response
+        # If no clear reasoning found and play is invalid, try to extract from full response
         if not is_valid and reasoning == "Rule violation detected":
             # Look for any line that mentions specific violations
             for line in lines:
                 line = line.strip().lower()
-                if any(keyword in line for keyword in ['multiple words', 'exact match', 'variant', 'letter count', 'position', 'board position']):
+                if any(keyword in line for keyword in ['multiple words', 'exact match', 'variant', 'letter count', 'position', 'field position']):
                     reasoning = line.title()
                     break
         
         return is_valid, reasoning
 
-    def _format_board_for_lineman(self, board_state: Dict) -> str:
-        """Format the board for lineman display with revealed status."""
-        board = board_state["board"]
+    def _format_field_for_player(self, board_state: Dict) -> str:
+        """Format the field for player display with revealed status."""
+        field = board_state["board"]
         revealed = board_state["revealed"]
         
         # Create a 5x5 grid display
@@ -393,7 +393,7 @@ class AIPlayer(Player):
             row_items = []
             for col in range(5):
                 idx = row * 5 + col
-                name = board[idx]
+                name = field[idx]
                 
                 # Mark revealed names with brackets
                 if revealed.get(name, False):
@@ -407,14 +407,14 @@ class AIPlayer(Player):
         
         return "\n".join(lines)
 
-    def _parse_lineman_response(
+    def _parse_player_response(
         self, response: str, board_state: Dict, max_number: int|str
     ) -> List[str]:
-        """Parse AI response for lineman guesses."""
+        """Parse AI response for player shots."""
         available_names = set(
             name for name in board_state["board"] if not board_state["revealed"].get(name, False)
         )
-        guesses = []
+        shots = []
 
         # Split response into lines and look for names
         lines = response.strip().split("\n")
@@ -422,7 +422,7 @@ class AIPlayer(Player):
         for line in lines:
             line = line.strip()
 
-            # Skip empty lines and obvious non-guess lines
+            # Skip empty lines and obvious non-shot lines
             if not line or line.startswith("#") or line.startswith("//"):
                 continue
 
@@ -434,23 +434,23 @@ class AIPlayer(Player):
                 # Check if this word is an available name
                 for available_name in available_names:
                     if clean_word == available_name.upper():
-                        if available_name not in guesses:
-                            guesses.append(available_name)
-                            # Handle different clue types
+                        if available_name not in shots:
+                            shots.append(available_name)
+                            # Handle different play types
                             if max_number == "unlimited" or max_number == 0:
-                                # Continue collecting guesses for unlimited/zero clues
+                                # Continue collecting shots for unlimited/zero plays
                                 continue
-                            elif isinstance(max_number, int) and len(guesses) >= max_number + 1:  # N+1 rule
-                                return guesses
+                            elif isinstance(max_number, int) and len(shots) >= max_number + 1:  # N+1 rule
+                                return shots
 
-        # If no valid guesses found, return first available name
-        if not guesses and available_names:
-            guesses = [next(iter(available_names))]
+        # If no valid shots found, return first available name
+        if not shots and available_names:
+            shots = [next(iter(available_names))]
 
-        # Apply limits based on clue type
+        # Apply limits based on play type
         if max_number == "unlimited" or max_number == 0:
-            return guesses  # No limit for unlimited/zero clues
+            return shots  # No limit for unlimited/zero plays
         elif isinstance(max_number, int):
-            return guesses[: max_number + 1]  # Enforce N+1 limit
+            return shots[: max_number + 1]  # Enforce N+1 limit
         else:
-            return guesses  # Fallback
+            return shots  # Fallback

@@ -8,9 +8,9 @@ import os
 
 import pytest
 
-from switchboard.adapters.openrouter_adapter import OpenRouterAdapter
-from switchboard.player import AIPlayer
-from switchboard.utils.logging import log_ai_call_metadata
+from playbook.adapters.openrouter_adapter import OpenRouterAdapter
+from playbook.player import AIPlayer
+from playbook.utils.logging import log_ai_call_metadata
 
 
 class TestOpenRouterAdapter:
@@ -139,22 +139,22 @@ class TestAIPlayerMetadata:
         self.player._adapter = self.mock_adapter
         self.player.prompt_manager.load_prompt = Mock(return_value="Test prompt")
 
-    def test_operator_metadata_storage(self):
-        """Test that operator calls store metadata correctly."""
+    def test_coach_metadata_storage(self):
+        """Test that coach calls store metadata correctly."""
         board_state = {
             "board": ["ALPHA", "BRAVO", "CHARLIE"],
             "revealed": {"ALPHA": False, "BRAVO": False, "CHARLIE": False},
             "current_team": "red",
-            "identities": {"ALPHA": "red_subscriber", "BRAVO": "blue_subscriber", "CHARLIE": "civilian"}
+            "identities": {"ALPHA": "red_target", "BRAVO": "blue_target", "CHARLIE": "civilian"}
         }
         
-        clue, number = self.player.get_operator_move(board_state, "test_prompt.md")
+        play, number = self.player.get_coach_move(board_state, "test_prompt.md")
         
-        assert clue == "ANIMALS"
+        assert play == "ANIMALS"
         assert number == 3
         
         metadata = self.player.get_last_call_metadata()
-        assert metadata["call_type"] == "operator"
+        assert metadata["call_type"] == "coach"
         assert metadata["input_tokens"] == 100
         assert metadata["output_tokens"] == 20
         assert metadata["openrouter_cost"] == 0.005

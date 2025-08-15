@@ -1,22 +1,22 @@
-# Agent Instructions for The Switchboard AI Game Simulator
+# Agent Instructions for The Playbook AI Game Simulator
 
 ## Project Overview
-This is a Python implementation of "The Switchboard" game - a strategic deduction game where teams use AI operators and linemen to identify allied subscribers while avoiding The Mole.
+This is a Python implementation of "Playbook" - a strategic deduction game where teams use AI coaches and players to identify allied targets while avoiding The Illegal Target.
 
 ## Development Environment
 
 ### Key Commands
 - **Install dependencies**: `uv sync`
-- **Run game**: `uv run switchboard run --red gpt4 --blue claude`
-- **Interactive mode**: `uv run switchboard run --red gpt4 --interactive`
-- **Test prompts**: `uv run switchboard prompt operator --seed 42`
+- **Run game**: `uv run playbook run --red gpt4 --blue claude`
+- **Interactive mode**: `uv run playbook run --red gpt4 --interactive`
+- **Test prompts**: `uv run playbook prompt coach --seed 42`
 - **Run tests**: `uv run pytest`
 - **Format code**: `uv run black . && uv run isort .`
-- **Type check**: `uv run mypy switchboard/`
+- **Type check**: `uv run mypy playbook/`
 
 ### Project Structure
 ```
-switchboard/                 # Main package
+playbook/                   # Main package
 ├── cli.py                  # Typer CLI interface
 ├── game.py                 # Core game logic and board management
 ├── player.py               # AIPlayer and HumanPlayer classes
@@ -30,17 +30,17 @@ inputs/
 └── names.yaml              # Name bank for game boards
 
 prompts/                    # Markdown prompt templates
-├── red_operator.md
-├── red_lineman.md
-├── blue_operator.md
-└── blue_lineman.md
+├── red_coach.md
+├── red_player.md
+├── blue_coach.md
+└── blue_player.md
 
 logs/                       # Game logs and analysis data
-├── switchboard_*.log       # Detailed debug logs
-├── play_by_play_*.log      # Clean game events (clues, guesses, results)
+├── playbook_*.log          # Detailed debug logs
+├── play_by_play_*.log      # Clean game events (plays, shots, results)
 ├── box_scores_*.jsonl      # Team performance summaries with formatted boards
 ├── game_metadata_*.jsonl   # AI call metrics (tokens, costs, latency, results)
-└── umpire_*.log           # Consolidated umpire validation logs
+└── referee_*.log           # Consolidated referee validation logs
 ```
 
 ## Code Style & Conventions
@@ -54,11 +54,11 @@ logs/                       # Game logs and analysis data
 ## Architecture Notes
 
 ### Game Flow
-1. **Board Setup**: 25 names assigned random identities (9 red, 8 blue, 7 civilians, 1 mole)
-2. **Turn Loop**: Teams alternate Operator → Lineman phases
-3. **Operator Phase**: AI/Human gives cryptic clue + number
-4. **Lineman Phase**: AI/Human makes up to N+1 guesses
-5. **Win Conditions**: Find all allied subscribers OR opponent hits The Mole
+1. **Board Setup**: 25 names assigned random identities (9 red, 8 blue, 7 civilians, 1 illegal target)
+2. **Turn Loop**: Teams alternate Coach → Player phases
+3. **Coach Phase**: AI/Human gives cryptic play + number
+4. **Player Phase**: AI/Human makes up to N+1 shots
+5. **Win Conditions**: Find all allied targets OR opponent hits The Illegal Target
 
 ### Key Design Principles
 - **Stateless AI Calls**: Each OpenRouter request is independent (security requirement)
@@ -78,23 +78,23 @@ logs/                       # Game logs and analysis data
 ## Common Development Tasks
 
 ### Testing AI Prompts
-- **Test operator prompts**: `uv run switchboard prompt operator --seed 42 --team red`
-- **Test lineman prompts**: `uv run switchboard prompt lineman --seed 42 --clue "TOOLS" --number 3`
-- **Test umpire prompts**: `uv run switchboard prompt umpire --seed 42 --clue "WEAPONS" --number 2`
-- **Test expert clues**: `uv run switchboard prompt lineman --clue "ANIMALS" --number 0` or `--number unlimited`
+- **Test coach prompts**: `uv run playbook prompt coach --seed 42 --team red`
+- **Test player prompts**: `uv run playbook prompt player --seed 42 --play "TOOLS" --number 3`
+- **Test referee prompts**: `uv run playbook prompt referee --seed 42 --play "WEAPONS" --number 2`
+- **Test expert plays**: `uv run playbook prompt player --play "ANIMALS" --number 0` or `--number unlimited`
 
 ### Adding New AI Models
 1. Update `model_mappings` in `openrouter_adapter.py`
-2. Test with `uv run switchboard run --red NEW_MODEL --blue claude`
+2. Test with `uv run playbook run --red NEW_MODEL --blue claude`
 
 ### Modifying Game Rules
 - Edit board setup logic in `game.py`
 - Update win/lose conditions in `process_guess()`
-- Adjust N+1 rule implementation in lineman guess handling
+- Adjust N+1 rule implementation in lineman shot handling
 
 ### Customizing AI Prompts
 - Edit Markdown files in `prompts/` directory
-- Use template variables: `{{BOARD}}`, `{{IDENTITIES}}`, `{{CLUE}}`, etc.
+- Use template variables: `{{BOARD}}`, `{{IDENTITIES}}`, `{{PLAY}}`, etc.
 - Test changes with `--verbose` flag to see full AI exchanges
 
 ### Debugging AI Behavior
@@ -108,7 +108,7 @@ The simulator produces multiple log formats for different analysis needs:
 
 1. **Play-by-Play Logs** (`play_by_play_*.log`)
    - Clean, human-readable game events
-   - Shows board state, clues, guesses, and results
+   - Shows board state, plays, shots, and results
    - Perfect for understanding game flow
 
 2. **Box Score Data** (`box_scores_*.jsonl`)
@@ -123,9 +123,9 @@ The simulator produces multiple log formats for different analysis needs:
    - Model performance analytics for cost optimization
    - Essential for model comparison and evaluation
 
-4. **Umpire Logs** (`umpire_*.log`)
+4. **Referee Logs** (`referee_*.log`)
    - Consolidated clue validation logs with team headers
-   - Shows all umpire decisions and reasoning
+   - Shows all referee decisions and reasoning
    - Helps debug prompt quality and fairness issues
 
 ## Known Issues & TODOs
