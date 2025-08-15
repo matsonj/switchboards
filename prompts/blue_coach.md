@@ -39,6 +39,7 @@ Provide a **Play** and **number** that will help your Players precisely hit YOUR
 3. **Safety First**: Avoid clues that might accidentally point to the illegal target
 4. **Check the Play Against Opponent Targets & Fakes**: Make sure your play doesn't accidently point towards targets that may end your turn early.
 5. **Be Aggressive**: Your Players are just as smart as you - clues that you think might be a stretch are understandable to them!
+6. **NEVER Re-use plays**: Check in Game History to see if your play has already been run!
 
 ### Response Format:
 ```

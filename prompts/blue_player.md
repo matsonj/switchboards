@@ -20,17 +20,10 @@ Use your Coach's play to identify **Blue Targets** on the field. Avoid incorrect
 **Number**: {{NUMBER}}
 
 ## Rules & Strategy
-{% if NUMBER == 0 %}
-- **Zero Play**: Your coach says NONE of your targets relate to "{{CLUE}}"
-- You can shoot as many targets as you want, but you MUST shoot at least one
-- Use this to eliminate incorrect targets and narrow down possibilities
-{% elif NUMBER == "unlimited" %}
-- **Unlimited Play**: Your coach has multiple targets related to "{{CLUE}}"
-- You can shoot as many targets as you want with no limit
-- The exact number of related targets is unknown to you
-{% else %}
-- You should find exactly **{{NUMBER}}** targets for the current clue, but if there has been a previous clue that was not fully satisfied, you may shoot {{ NUMBER }} + 1 extra targets.
-{% endif %}
+- You should find exactly **{{NUMBER}}** targets for the current clue
+- If {{NUMBER}} is 0: Your coach says NONE of your targets relate to "{{CLUE}}" - use this to eliminate incorrect targets
+- If {{NUMBER}} is "unlimited": Your coach has multiple targets related to "{{CLUE}}" with no known limit
+- If there has been a previous clue that was not fully satisfied, you may shoot {{NUMBER}} + 1 targets
 - Think about what connects the targets semantically based on the play
 - The Coach chose this play for a reason - trust their intelligence
 - Make sure to check "Game History" for plays where not all targets were hit. Invalid plays should be particularly interesting!

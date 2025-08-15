@@ -433,7 +433,7 @@ def prompt(
             blue_targets = [name for name, identity in field_state["identities"].items() 
                               if identity == "blue_target"]
             fake_targets = [name for name, identity in field_state["identities"].items() 
-                        if identity == "fake_target"]
+                        if identity == "civilian"]
             illegal_target = [name for name, identity in field_state["identities"].items() 
                    if identity == "illegal_target"]
             
@@ -446,10 +446,11 @@ def prompt(
                     "red_remaining": red_remaining,
                     "blue_remaining": blue_remaining,
                     "revealed_names": ", ".join(revealed_names) if revealed_names else "None",
-                    "red_targets": ", ".join(red_targets),
-                    "blue_targets": ", ".join(blue_targets),
-                    "fake_targets": ", ".join(fake_targets),
-                    "illegal_target": ", ".join(illegal_target),
+                    "red_subscribers": ", ".join(red_targets),
+                    "blue_subscribers": ", ".join(blue_targets),
+                    "civilians": ", ".join(fake_targets),
+                    "mole": ", ".join(illegal_target),
+                    "clue_history": "No previous plays yet",
                 },
             )
             
@@ -468,10 +469,10 @@ def prompt(
             prompt = prompt_manager.load_prompt(
                 prompt_file,
                 {
-                    "field": _format_board_for_player_cli(field_state),
+                    "board": _format_board_for_player_cli(field_state),
                     "available_names": available_names_formatted,
-                    "play_history": field_state.get("play_history", "None (game just started)"),
-                    "play": play,
+                    "clue_history": field_state.get("play_history", "None (game just started)"),
+                    "clue": play,
                     "number": parsed_number,
                     "team": team,
                 },
@@ -487,11 +488,11 @@ def prompt(
             prompt = prompt_manager.load_prompt(
                 referee_prompt,
                 {
-                    "play": play,
+                    "clue": play,
                     "number": parsed_number,
                     "team": team,
-                    "field": field_state["board"],
-                    "allied_targets": ", ".join(allied_targets),
+                    "board": ", ".join(field_state["board"]),
+                    "allied_subscribers": ", ".join(allied_targets),
                 },
             )
         

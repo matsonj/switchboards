@@ -85,7 +85,7 @@ class AIPlayer(Player):
             blue_targets = [name for name, identity in board_state["identities"].items() 
                               if identity == "blue_target"]
             fake_targets = [name for name, identity in board_state["identities"].items() 
-                        if identity == "fake_target"]
+                        if identity == "civilian"]
             illegal_target = [name for name, identity in board_state["identities"].items() 
                    if identity == "illegal_target"]
             
@@ -99,10 +99,11 @@ class AIPlayer(Player):
                     "red_remaining": red_remaining,
                     "blue_remaining": blue_remaining,
                     "revealed_names": ", ".join(revealed_names) if revealed_names else "None",
-                    "red_targets": ", ".join(red_targets),
-                    "blue_targets": ", ".join(blue_targets),
-                    "fake_targets": ", ".join(fake_targets),
-                    "illegal_target": ", ".join(illegal_target),
+                    "red_subscribers": ", ".join(red_targets),
+                    "blue_subscribers": ", ".join(blue_targets),
+                    "civilians": ", ".join(fake_targets),
+                    "mole": ", ".join(illegal_target),
+                    "clue_history": "Previous plays will be shown here",  # TODO: Add actual history
                 },
             )
 
@@ -147,11 +148,11 @@ class AIPlayer(Player):
             prompt = self.prompt_manager.load_prompt(
                 prompt_file,
                 {
-                    "play": play,
+                    "clue": play,
                     "number": number,
                     "team": team,
-                    "field": board_state["board"],
-                    "allied_targets": ", ".join(allied_targets),
+                    "board": ", ".join(board_state["board"]),
+                    "allied_subscribers": ", ".join(allied_targets),
                 },
             )
 
@@ -243,10 +244,10 @@ class AIPlayer(Player):
             prompt = self.prompt_manager.load_prompt(
                 prompt_file,
                 {
-                    "field": self._format_field_for_player(board_state),
+                    "board": self._format_field_for_player(board_state),
                     "available_names": available_names_formatted,
-                    "play_history": board_state.get("play_history", "None (game just started)"),
-                    "play": play,
+                    "clue_history": board_state.get("play_history", "None (game just started)"),
+                    "clue": play,
                     "number": number,
                     "team": board_state["current_team"],
                 },
