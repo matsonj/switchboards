@@ -289,10 +289,11 @@ class AIPlayer(Player):
 
         for line in lines:
             line = line.strip()
-            if line.startswith("PLAY:"):
-                play = line.replace("PLAY:", "").strip().strip("\"'")
-            elif line.startswith("NUMBER:"):
-                number_str = line.replace("NUMBER:", "").strip().lower()
+            # Handle both plain and markdown formatted responses
+            if line.startswith("PLAY:") or line.startswith("**PLAY:**"):
+                play = line.replace("**PLAY:**", "").replace("PLAY:", "").strip().strip("\"'")
+            elif line.startswith("NUMBER:") or line.startswith("**NUMBER:**"):
+                number_str = line.replace("**NUMBER:**", "").replace("NUMBER:", "").strip().lower()
                 if number_str == "unlimited":
                     number = "unlimited"
                 else:

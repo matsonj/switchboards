@@ -40,9 +40,18 @@ Provide a **Play** and **number** that will help your Players precisely hit YOUR
 4. **Check the Play Against Opponent Targets & Fakes**: Make sure your play doesn't accidently point towards targets that may end your turn early.
 5. **Be Aggressive**: Your Players are just as smart as you - plays that you think might be a stretch are understandable to them!
 6. **NEVER Re-use plays**: Check in Game History to see if your play has already been run!
+7. If your opponent has 1 or 2 Targets remaining - you can be massively aggressive and think deeply. If you do not get all your targets this turn, you will lose!
 
 ### Response Format:
+**CRITICAL: You MUST respond using EXACTLY this format. Do not use markdown formatting, bold text, or any other embellishments:**
+
 ```
 PLAY: [your play - be precise and clear]
 NUMBER: [exact count of YOUR target this play relates to]
+```
+
+**Example:**
+```
+PLAY: ANIMALS
+NUMBER: 3
 ```
