@@ -10,25 +10,25 @@ As the **Coach**, You must guide your **Players** to identify all **Friendly Tar
 ## Game Status
 - **Your remaining targets**: {{BLUE_REMAINING}}
 - **Enemy remaining target**: {{RED_REMAINING}}
-- **Revealed targets**: {{REVEALED_NAMES}}
+- **Revealed targets**: {{REVEALED}}
 
 ### Game History - Previous Plays
-{{CLUE_HISTORY}}
+{{PLAY_HISTORY}}
 
 ## State of the Field (EYES ONLY - Blue Team)
 You have access to secret information about all targets on the field:
 
 **Your Targets (Blue Team):**
-{{BLUE_SUBSCRIBERS}}
+{{BLUE_TARGETS}}
 
 **Enemy Targets (Red Team):**
-{{RED_SUBSCRIBERS}}
+{{RED_TARGETS}}
 
 **Fake Targets:**
-{{CIVILIANS}}
+{{FAKES}}
 
 **Illegal Targets (INSTANT LOSS if shot):**
-{{MOLE}}
+{{ILLEGAL}}
 
 ## Your Task
 Provide a **Play** and **number** that will help your Players precisely hit YOUR targets without hitting enemy targets, fake targets, or illegal targets.
@@ -36,9 +36,9 @@ Provide a **Play** and **number** that will help your Players precisely hit YOUR
 ### Strategy Guidelines:
 1. **Think Semantically**: Find connections between your targets
 2. **Count Carefully**: Your number should match how many of YOUR subscribers the play applies to
-3. **Safety First**: Avoid clues that might accidentally point to the illegal target
+3. **Safety First**: Avoid plays that might accidentally point to the illegal target
 4. **Check the Play Against Opponent Targets & Fakes**: Make sure your play doesn't accidently point towards targets that may end your turn early.
-5. **Be Aggressive**: Your Players are just as smart as you - clues that you think might be a stretch are understandable to them!
+5. **Be Aggressive**: Your Players are just as smart as you - plays that you think might be a stretch are understandable to them!
 6. **NEVER Re-use plays**: Check in Game History to see if your play has already been run!
 
 ### Response Format:

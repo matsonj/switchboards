@@ -48,8 +48,8 @@ Playbook is a strategic deduction game where two teams (Red and Blue) compete to
 5. **NEVER reference positions** on the board (row, column, location)
 
 ### Single Word Exceptions
-1. English has three ways to write compound words. "Greenhouse" is one word. "Pack rat" is two words. "Mother-in-law" is hyphentated. Technically, only "Greenhouse" is a one-word clue. Compound words are allowed when describing specific ideas.
-2. Proper Names are ALWAYS valid clues if they follow the other rules. Proper Names, such as "George Washington" or "The Three Musketeers" are valid words, as is "New York" or "The Big Apple".
+1. English has three ways to write compound words. "Greenhouse" is one word. "Pack rat" is two words. "Mother-in-law" is hyphentated. Technically, only "Greenhouse" is a one-word play. Compound words are allowed when describing specific ideas.
+2. Proper Names are ALWAYS valid plays if they follow the other rules. Proper Names, such as "George Washington" or "The Three Musketeers" are valid words, as is "New York" or "The Big Apple".
 3. Acronymns and Abbreviations are allowed when they are commonly referred to as a single word. Examples include CIA, UK, PhD and technical words like SQL, Radar, or Sonar.
 
 ### Penalty for Invalid Play

@@ -8,6 +8,11 @@ from typing import Any, Dict
 logger = logging.getLogger(__name__)
 
 
+class PromptHydrationError(Exception):
+    """Raised when prompt template hydration fails."""
+    pass
+
+
 class PromptManager:
     """Manages loading and formatting of prompt templates from Markdown files."""
 
@@ -31,9 +36,13 @@ class PromptManager:
             logger.debug(f"Loaded prompt from {prompt_file}")
             return formatted_prompt
 
+        except PromptHydrationError as e:
+            # Re-raise hydration errors to fail fast
+            logger.error(f"Prompt hydration failed for {prompt_file}: {e}")
+            raise
         except Exception as e:
             logger.error(f"Error loading prompt from {prompt_file}: {e}")
-            return self._get_default_prompt(context)
+            raise PromptHydrationError(f"Failed to load prompt {prompt_file}: {e}")
 
     def _load_with_includes(self, prompt_path: Path) -> str:
         """Load a prompt file and process any {{include}} directives."""
@@ -68,6 +77,9 @@ class PromptManager:
     def _format_template(self, template: str, context: Dict[str, Any]) -> str:
         """Format template string with context variables."""
         try:
+            # Find all template variables in the template
+            template_vars = set(re.findall(r'\{\{([A-Z_]+)\}\}', template))
+            
             # Simple template variable replacement
             formatted = template
 
@@ -96,11 +108,26 @@ class PromptManager:
                 else:
                     formatted = formatted.replace(placeholder, str(value))
 
+            # Check for any remaining unhydrated template variables
+            remaining_vars = set(re.findall(r'\{\{([A-Z_]+)\}\}', formatted))
+            if remaining_vars:
+                provided_vars = {key.upper() for key in context.keys()}
+                missing_vars = remaining_vars - provided_vars
+                
+                raise PromptHydrationError(
+                    f"Template hydration failed. Missing variables: {missing_vars}. "
+                    f"Template expected: {template_vars}. "
+                    f"Context provided: {provided_vars}"
+                )
+
             return formatted
 
+        except PromptHydrationError:
+            # Re-raise hydration errors
+            raise
         except Exception as e:
             logger.error(f"Error formatting template: {e}")
-            return template
+            raise PromptHydrationError(f"Template formatting error: {e}")
 
     def _format_board(self, board: list) -> str:
         """Format board as a 5x5 grid."""

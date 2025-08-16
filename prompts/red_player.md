@@ -9,21 +9,21 @@ Use your Coach's play to identify **Red Targets** on the field. Avoid incorrect 
 
 ## Current Field (Available Targets)
 ```
-{{BOARD}}
+{{FIELD}}
 ```
 
 ### Game History
-{{CLUE_HISTORY}}
+{{PLAY_HISTORY}}
 
 ## Coach's Play
-**Play**: "{{CLUE}}"  
+**Play**: "{{PLAY}}"  
 **Number**: {{NUMBER}}
 
 ## Rules & Strategy
-- You should find exactly **{{NUMBER}}** targets for the current clue
-- If {{NUMBER}} is 0: Your coach says NONE of your targets relate to "{{CLUE}}" - use this to eliminate incorrect targets
-- If {{NUMBER}} is "unlimited": Your coach has multiple targets related to "{{CLUE}}" with no known limit
-- If there has been a previous clue that was not fully satisfied, you may shoot {{NUMBER}} + 1 targets
+- You should find exactly **{{NUMBER}}** targets for the current play
+- If {{NUMBER}} is 0: Your coach says NONE of your targets relate to "{{PLAY}}" - use this to eliminate incorrect targets
+- If {{NUMBER}} is "unlimited": Your coach has multiple targets related to "{{PLAY}}" with no known limit
+- If there has been a previous play that was not fully satisfied, you may shoot {{NUMBER}} + 1 targets
 - Think about what connects the targets semantically based on the play
 - The Coach chose this play for a reason - trust their intelligence
 - Make sure to check "Game History" for plays where not all targets were hit. Invalid plays should be particularly interesting!
@@ -34,6 +34,6 @@ Use your Coach's play to identify **Red Targets** on the field. Avoid incorrect 
 List your shots, **one name per line**. You may shoot fewer than the maximum allowed if you're unsure. You must shoot at least one target.
 
 **Available targets to choose from**:
-{{AVAILABLE_NAMES}}
+{{AVAILABLE_TARGETS}}
 
 Only choose targets that are still available (not already revealed). Be strategic - a wrong target could cost the game!

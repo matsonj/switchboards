@@ -7,11 +7,11 @@ You are the **Referee** for the game Playbook. Your role is to ensure fair play 
 ## Your Validation Task
 
 You have been provided with:
-- **Proposed Play**: "{{CLUE}}"
+- **Proposed Play**: "{{PLAY}}"
 - **Proposed Number**: {{NUMBER}}
 - **Team**: {{TEAM}} Team
-- **Current Field**: {{BOARD}}
-- **Team's Targets**: {{ALLIED_SUBSCRIBERS}}
+- **Current Field**: {{FIELD}}
+- **Team's Targets**: {{ALLIED_TARGETS}}
 
 ## Validation Criteria
 

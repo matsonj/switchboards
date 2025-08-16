@@ -441,16 +441,15 @@ def prompt(
                 prompt_file,
                 {
                     "field": field_state["board"],
-                    "revealed": field_state["revealed"],
+                    "revealed": ", ".join(revealed_names) if revealed_names else "None",
                     "team": team,
                     "red_remaining": red_remaining,
                     "blue_remaining": blue_remaining,
-                    "revealed_names": ", ".join(revealed_names) if revealed_names else "None",
-                    "red_subscribers": ", ".join(red_targets),
-                    "blue_subscribers": ", ".join(blue_targets),
-                    "civilians": ", ".join(fake_targets),
-                    "mole": ", ".join(illegal_target),
-                    "clue_history": "No previous plays yet",
+                    "red_targets": ", ".join(red_targets),
+                    "blue_targets": ", ".join(blue_targets),
+                    "fakes": ", ".join(fake_targets),
+                    "illegal": ", ".join(illegal_target),
+                    "play_history": "No previous plays yet",
                 },
             )
             
@@ -469,10 +468,10 @@ def prompt(
             prompt = prompt_manager.load_prompt(
                 prompt_file,
                 {
-                    "board": _format_board_for_player_cli(field_state),
-                    "available_names": available_names_formatted,
-                    "clue_history": field_state.get("play_history", "None (game just started)"),
-                    "clue": play,
+                    "field": _format_board_for_player_cli(field_state),
+                    "available_targets": available_names_formatted,
+                    "play_history": field_state.get("play_history", "None (game just started)"),
+                    "play": play,
                     "number": parsed_number,
                     "team": team,
                 },
@@ -488,11 +487,11 @@ def prompt(
             prompt = prompt_manager.load_prompt(
                 referee_prompt,
                 {
-                    "clue": play,
+                    "play": play,
                     "number": parsed_number,
                     "team": team,
-                    "board": ", ".join(field_state["board"]),
-                    "allied_subscribers": ", ".join(allied_targets),
+                    "field": ", ".join(field_state["board"]),
+                    "allied_targets": ", ".join(allied_targets),
                 },
             )
         

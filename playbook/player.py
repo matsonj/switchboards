@@ -94,16 +94,15 @@ class AIPlayer(Player):
                 prompt_file,
                 {
                     "field": board_state["board"],
-                    "revealed": board_state["revealed"],
+                    "revealed": ", ".join(revealed_names) if revealed_names else "None",
                     "team": board_state["current_team"],
                     "red_remaining": red_remaining,
                     "blue_remaining": blue_remaining,
-                    "revealed_names": ", ".join(revealed_names) if revealed_names else "None",
-                    "red_subscribers": ", ".join(red_targets),
-                    "blue_subscribers": ", ".join(blue_targets),
-                    "civilians": ", ".join(fake_targets),
-                    "mole": ", ".join(illegal_target),
-                    "clue_history": "Previous plays will be shown here",  # TODO: Add actual history
+                    "red_targets": ", ".join(red_targets),
+                    "blue_targets": ", ".join(blue_targets),
+                    "fakes": ", ".join(fake_targets),
+                    "illegal": ", ".join(illegal_target),
+                    "play_history": "Previous plays will be shown here",  # TODO: Add actual history
                 },
             )
 
@@ -148,11 +147,11 @@ class AIPlayer(Player):
             prompt = self.prompt_manager.load_prompt(
                 prompt_file,
                 {
-                    "clue": play,
+                    "play": play,
                     "number": number,
                     "team": team,
-                    "board": ", ".join(board_state["board"]),
-                    "allied_subscribers": ", ".join(allied_targets),
+                    "field": ", ".join(board_state["board"]),
+                    "allied_targets": ", ".join(allied_targets),
                 },
             )
 
@@ -244,10 +243,10 @@ class AIPlayer(Player):
             prompt = self.prompt_manager.load_prompt(
                 prompt_file,
                 {
-                    "board": self._format_field_for_player(board_state),
-                    "available_names": available_names_formatted,
-                    "clue_history": board_state.get("play_history", "None (game just started)"),
-                    "clue": play,
+                    "field": self._format_field_for_player(board_state),
+                    "available_targets": available_names_formatted,
+                    "play_history": board_state.get("play_history", "None (game just started)"),
+                    "play": play,
                     "number": number,
                     "team": board_state["current_team"],
                 },

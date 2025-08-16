@@ -222,8 +222,8 @@ class PlaybookGame:
         
         console.print(f"\n[red]Red Team:[/red] {red_total} targets")
         console.print(f"[blue]Blue Team:[/blue] {blue_total} targets")
-        console.print(f"[dim]Fake Targets:[/dim] {civilian_total}")
-        console.print(f"[black on white]The Illegal Target:[/black on white] 1")
+        console.print(f"[dim]Fakes:[/dim] {civilian_total} targets")
+        console.print(f"[black on white]Illegal:[/black on white] 1 target")
         console.print("")
 
     def display_board(self, reveal_all: bool = False):
@@ -640,7 +640,7 @@ class PlaybookGame:
                 console.print(f"[yellow]✗ {name} is an Innocent Civilian[/yellow]")
                 log_player_shot(self.current_team, model_name, name, "civilian", self.turn_count, self.starting_team)
             else:
-                console.print(f"[red]✗ {name} belongs to the other team[/red]")
+                console.print(f"[dim]✗ {name} belongs to the other team[/dim]")
                 log_player_shot(self.current_team, model_name, name, "enemy", self.turn_count, self.starting_team)
             return False
 
@@ -829,17 +829,17 @@ class PlaybookGame:
                     
                     if review_valid:
                         # Second referee says it's valid - override first decision
-                        console.print(f"[green]✅ Review referee (Gemini 2.5 Pro) APPROVED the play - overriding first decision[/green]")
-                        console.print(f"[dim]First referee ({self.referee_player.model_name}): {reasoning}[/dim]")
+                        console.print(f"[green]✅ The ruling is overturned![/green]")
+                        console.print(f"[dim]First referee ({self.referee_player.model_name}) - {reasoning}[/dim]")
                         console.print(f"[dim]Review referee: {review_reasoning}[/dim]")
                         is_valid = True
                         reasoning = f"Approved on review by Gemini 2.5 Pro: {review_reasoning}"
                     else:
                         # Both referees say invalid - reject the play
-                        console.print(f"[red]❌ Review referee (Gemini 2.5 Pro) also REJECTED the play - final decision: INVALID[/red]")
+                        console.print(f"[yellow]❌ The ruling on the play stands![/yellow]")
                         console.print(f"[dim]First referee ({self.referee_player.model_name}): {reasoning}[/dim]")
                         console.print(f"[dim]Review referee: {review_reasoning}[/dim]")
-                        reasoning = f"Rejected by both referees. First: {reasoning}. Review: {review_reasoning}"
+                        reasoning = f"Upheld on review. First: {reasoning}. Review: {review_reasoning}"
             
             # Log AI call metadata for referee validation
             if isinstance(self.referee_player, AIPlayer):
@@ -873,8 +873,8 @@ class PlaybookGame:
             if is_valid:
                 return play, number, True, reasoning
             else:
-                console.print(f"[red]🔴 Referee: Play REJECTED - {reasoning}[/red]")
-                console.print(f"[yellow]⚠️  Turn ended due to invalid play[/yellow]")
+                #console.print(f"[red]🔴 Referee: Play REJECTED - {reasoning}[/red]")
+                console.print(f"⚠️  Turn ended due to invalid play")
                 log_referee_rejection(self.current_team, play, number, reasoning)
                 return play, number, False, reasoning
                 
@@ -899,7 +899,7 @@ class PlaybookGame:
             penalty_target = random.choice(opposing_targets)
             self.revealed[penalty_target] = True
             
-            console.print(f"[yellow]⚖️  PENALTY: {penalty_target} revealed for {opposing_team.upper()} team due to invalid play[/yellow]")
+            console.print(f"[dim]⚖️  PENALTY: {penalty_target} revealed for {opposing_team.upper()} team due to invalid play[/dim]")
             
             # Log the penalty action
             log_referee_penalty(self.current_team, opposing_team, penalty_target)
