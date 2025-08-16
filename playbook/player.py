@@ -243,12 +243,12 @@ class AIPlayer(Player):
             prompt = self.prompt_manager.load_prompt(
                 prompt_file,
                 {
-                    "field": self._format_field_for_player(board_state),
-                    "available_targets": available_names_formatted,
-                    "play_history": board_state.get("play_history", "None (game just started)"),
-                    "play": play,
-                    "number": number,
-                    "team": board_state["current_team"],
+                    "FIELD": self._format_field_for_player(board_state),
+                    "AVAILABLE_TARGETS": available_names_formatted,
+                    "PLAY_HISTORY": board_state.get("play_history", "None (game just started)"),
+                    "PLAY": play,
+                    "NUMBER": number,
+                    "TEAM": board_state["current_team"],
                 },
             )
 

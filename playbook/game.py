@@ -286,6 +286,31 @@ class PlaybookGame:
             f"\n[red]Red Team Remaining: {red_remaining}[/red]  [blue]Blue Team Remaining: {blue_remaining}[/blue]"
         )
 
+    def _format_field_for_player_prompt(self, board_state: Dict) -> str:
+        """Format the field for player prompt display with revealed status."""
+        field = board_state["board"]
+        revealed = board_state["revealed"]
+        
+        # Create a 5x5 grid display
+        lines = []
+        for row in range(5):
+            row_items = []
+            for col in range(5):
+                idx = row * 5 + col
+                name = field[idx]
+                
+                # Mark revealed names with brackets
+                if revealed.get(name, False):
+                    display_name = f"[{name}]"
+                else:
+                    display_name = name
+                
+                row_items.append(f"{display_name:>12}")
+            
+            lines.append(" |".join(row_items))
+        
+        return "\n".join(lines)
+
     def get_coach_turn(self) -> Tuple[Optional[str], Optional[int|str]]:
         """Get play and number from the current team's coach."""
         player = self.red_player if self.current_team == "red" else self.blue_player
@@ -447,12 +472,12 @@ class PlaybookGame:
             prompt = prompt_manager.load_prompt(
                 self.prompt_files[prompt_key],
                 {
-                    "board": board_state,
-                    "available_names": available_names_formatted,
-                    "play_history": board_state.get("play_history", "None (game just started)"),
-                    "play": play,
-                    "number": number,
-                    "team": self.current_team,
+                    "FIELD": self._format_field_for_player_prompt(board_state),
+                    "AVAILABLE_TARGETS": available_names_formatted,
+                    "PLAY_HISTORY": board_state.get("play_history", "None (game just started)"),
+                    "PLAY": play,
+                    "NUMBER": number,
+                    "TEAM": self.current_team,
                 },
             )
             
