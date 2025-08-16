@@ -617,7 +617,7 @@ class PlaybookGame:
             return False
 
         elif identity == f"{self.current_team}_target":
-            console.print(f"[green]✓ Correct! {name} is an Allied Target[/green]")
+            console.print(f"[green]✓ Correct! {name} scores 1 goal![/green]")
             log_player_shot(self.current_team, model_name, name, "correct", self.turn_count, self.starting_team)
 
             # Check win condition
@@ -637,10 +637,10 @@ class PlaybookGame:
 
         else:
             if identity == "civilian":
-                console.print(f"[yellow]✗ {name} is an Innocent Civilian[/yellow]")
+                console.print(f"[yellow]✗ {name} is a fake.[/yellow]")
                 log_player_shot(self.current_team, model_name, name, "civilian", self.turn_count, self.starting_team)
             else:
-                console.print(f"[dim]✗ {name} belongs to the other team[/dim]")
+                console.print(f"[dim]✗ {name} is an own goal.[/dim]")
                 log_player_shot(self.current_team, model_name, name, "enemy", self.turn_count, self.starting_team)
             return False
 
