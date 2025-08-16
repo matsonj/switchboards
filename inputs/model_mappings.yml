@@ -41,6 +41,7 @@ models:
 
   # Other models
   qwen3: "qwen/qwen3-30b-a3b-instruct-2507"
+  kimi: "moonshotai/kimi-k2"
   
   # Meta models (if available through OpenRouter)
   llama-3.3: "meta-llama/llama-3.3-70b-instruct"
@@ -53,6 +54,8 @@ models:
   # DeepSeek models (if available through OpenRouter)
   deepseek: "deepseek/deepseek-r1"
   deepseek-coder: "deepseek/deepseek-coder"
+  deepseek-v3: "deepseek/deepseek-chat-v3-0324"
+  deepseek-r1: "deepseek/deepseek-r1-0528"
   
   # Cohere models (if available through OpenRouter)
   command-r: "cohere/command-r"
