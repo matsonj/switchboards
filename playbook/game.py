@@ -642,6 +642,21 @@ class PlaybookGame:
             else:
                 console.print(f"[dim]✗ {name} is an own goal.[/dim]")
                 log_player_shot(self.current_team, model_name, name, "enemy", self.turn_count, self.starting_team)
+                
+                # Check if the opposing team just won by having this team hit their target
+                opposing_team = "blue" if self.current_team == "red" else "red"
+                remaining = sum(
+                    1
+                    for n, i in self.identities.items()
+                    if i == f"{opposing_team}_target" and not self.revealed[n]
+                )
+                if remaining == 0:
+                    console.print(
+                        f"[green]🎉 {opposing_team.title()} team wins![/green]"
+                    )
+                    self.game_over = True
+                    self.winner = opposing_team
+                    
             return False
 
     def get_remaining_targets(self):
